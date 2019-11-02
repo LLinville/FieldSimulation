@@ -29,7 +29,7 @@ def add_point(field, location, size=10, polarity=1, rotation = 0, turns=1):
     field[location[0] - size // 2: location[0] + size // 2, location[1] - size // 2: location[1] + size // 2, 1] += rotated.imag
 
 
-class Conway(Example):
+class ComplesIntegrator(Example):
     title = "Polar field"
     aspect_ratio = 1.0
     window_size = (500, 500)
