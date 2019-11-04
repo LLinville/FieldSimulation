@@ -51,8 +51,7 @@ class ComplexIntegrator(Example):
         starting_positions = pixels.copy()
         starting_velocities = np.zeros_like(pixels).astype('f4')
 
-        self.step_positions = self.ctx.program(
-            vertex_shader='''
+        self.step_positions = self.ctx.compute_shader('''
                         #version 330
 
                         uniform sampler2D VelocitiesTexture;
@@ -92,8 +91,7 @@ class ComplexIntegrator(Example):
                             out_pos *= (1.0 - Timestep);
                             out_pos += Timestep * (vel(in_coords.x, in_coords.y) + Timestep * out_acc / 2.0);
                         }
-                    ''',
-            varyings=['out_pos']
+                    '''
         )
 
         self.step_velocities = self.ctx.program(
@@ -181,19 +179,26 @@ class ComplexIntegrator(Example):
                 }
             ''',
         )
-
+        self.positions = self.ctx.texture((width, height), 2, starting_positions.tobytes(), dtype='f4')
         self.step_positions['Width'].value = width
         self.step_positions['Height'].value = height
+        self.step_positions['PositionsTexture'] = self.positions
+        self.step_positions['VelocitiesTexture'] = self.velocities
 
+        self.velocities = self.ctx.texture((width, height), 2, starting_velocities.tobytes(), dtype='f4')
         self.step_velocities['Width'].value = width
         self.step_velocities['Height'].value = height
+        self.step_velocities['PositionsTexture'] = self.positions
+        self.step_velocities['VelocitiesTexture'] = self.velocities
 
-        self.positions = self.ctx.texture((width, height), 2, starting_positions.tobytes(), dtype='f4')
+
         self.positions.filter = (moderngl.NEAREST, moderngl.NEAREST)
         self.positions.swizzle = 'RGG1'
         self.positions.use()
 
-        self.velocities = self.ctx.texture((width, height), 2, starting_velocities.tobytes(), dtype='f4')
+
+
+
         self.velocities.filter = (moderngl.NEAREST, moderngl.NEAREST)
         self.velocities.swizzle = 'RGG1'
         self.velocities.use()

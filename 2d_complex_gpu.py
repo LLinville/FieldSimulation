@@ -29,7 +29,7 @@ def add_point(field, location, size=10, polarity=1, rotation = 0, turns=1):
     field[location[0] - size // 2: location[0] + size // 2, location[1] - size // 2: location[1] + size // 2, 1] += rotated.imag
 
 
-class ComplesIntegrator(Example):
+class ComplexIntegrator(Example):
     title = "Polar field"
     aspect_ratio = 1.0
     window_size = (500, 500)
@@ -96,21 +96,28 @@ class ComplesIntegrator(Example):
 
                 in ivec2 in_text;
                 out vec2 out_vert;
+                
+                const float GRAD_WEIGHT = 0.001
 
                 vec2 lookup(int x, int y) {
                     return texelFetch(Texture, ivec2((x + Width) % Width, (y + Height) % Height), 0).rg;
                 }
 
                 void main() {
-                    vec2 total = lookup(in_text.x, in_text.y);
+                    vec2 center = lookup(in_text.x, in_text.y);
 
-                    total += lookup(in_text.x - 1, in_text.y);
-                    total += lookup(in_text.x + 1, in_text.y);
-                    total += lookup(in_text.x, in_text.y - 1);
-                    total += lookup(in_text.x, in_text.y + 1);
+                    vec2 left = lookup(in_text.x - 1, in_text.y);
+                    vec2 right = lookup(in_text.x + 1, in_text.y);
+                    vec2 down = lookup(in_text.x, in_text.y - 1);
+                    vec2 up = lookup(in_text.x, in_text.y + 1);
 
-                    out_vert = total / 5.0;
+                    out_vert = left + right + up + down + center / 5.0;
+                    
+                    /*vec2 grad = (right - left + up - down) / 2.0;
+                    
+                    out_vert = out_vert + GRAD_WEIGHT * (grad.x * grad.x + grad.y * grad.y);
                     //out_vert = lookup(in_text.x, in_text.y);
+                    */
                 }
             ''',
             varyings=['out_vert']
@@ -141,4 +148,4 @@ class ComplesIntegrator(Example):
 
 
 if __name__ == '__main__':
-    Conway.run()
+    ComplexIntegrator.run()
