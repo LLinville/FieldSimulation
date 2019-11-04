@@ -44,7 +44,7 @@ class ComplexIntegrator(Example):
         ]).astype('f4')
         pixels = np.zeros((width, height, 2)).astype('f4')
         # add_point(pixels, (200, 200), 50)
-        add_point(pixels, (300, 300), 300, turns=31)
+        add_point(pixels, (300, 300), 300, turns=1)
         grid = np.dstack(np.mgrid[0:height, 0:width][::-1]).astype('i4')
 
         self.prog = self.ctx.program(
@@ -69,17 +69,32 @@ class ComplexIntegrator(Example):
                 in vec2 v_text;
                 out vec4 f_color;
                 
+                const int Width = 500;
+                const int Height = 500;
+                
                 vec3 hsv2rgb(vec3 c) {
                   vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
                   vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
                   return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
                 }
+                
+                vec2 lookup(int x, int y) {
+                    return texelFetch(Texture, ivec2((x + Width) % Width, (y + Height) % Height), 0).rg;
+                }
 
                 void main() {
                     vec4 input = texture(Texture, v_text);
+                    
+                    vec2 left = lookup(in_text.x - 1, in_text.y);
+                    vec2 right = lookup(in_text.x + 1, in_text.y);
+                    vec2 down = lookup(in_text.x, in_text.y - 1);
+                    vec2 up = lookup(in_text.x, in_text.y + 1);
+                    
+                    vec2 grad = (right - left + up - down) / 2.0;
+                    
                     float mag = input.r*input.r+input.g*input.g;
                     mag = sqrt(mag);
-                    vec3 hsv = vec3(atan(input.r, input.g)/(2*PI), 1, mag * 0.7 + 0.3);
+                    vec3 hsv = vec3(atan(input.r, input.g)/(2*PI), 1, mag);// * 0.7 + 0.3);
                     vec3 rgb = hsv2rgb(hsv);
                     f_color = vec4(rgb.rgb, 1);
                 }
@@ -96,8 +111,8 @@ class ComplexIntegrator(Example):
 
                 in ivec2 in_text;
                 out vec2 out_vert;
-                
-                const float GRAD_WEIGHT = 0.001
+
+                const float GRAD_WEIGHT = 0.24;
 
                 vec2 lookup(int x, int y) {
                     return texelFetch(Texture, ivec2((x + Width) % Width, (y + Height) % Height), 0).rg;
@@ -111,13 +126,12 @@ class ComplexIntegrator(Example):
                     vec2 down = lookup(in_text.x, in_text.y - 1);
                     vec2 up = lookup(in_text.x, in_text.y + 1);
 
-                    out_vert = left + right + up + down + center / 5.0;
+                    out_vert = (left + right + up + down + center) / 5.0;
                     
-                    /*vec2 grad = (right - left + up - down) / 2.0;
+                    vec2 grad = (right - left + up - down) / 2.0;
                     
-                    out_vert = out_vert + GRAD_WEIGHT * (grad.x * grad.x + grad.y * grad.y);
+                    out_vert = out_vert * (1 + GRAD_WEIGHT * min(0.01, (grad.x * grad.x + grad.y * grad.y)));
                     //out_vert = lookup(in_text.x, in_text.y);
-                    */
                 }
             ''',
             varyings=['out_vert']
