@@ -72,25 +72,33 @@ class ComplexIntegrator(Example):
                 const int Width = 500;
                 const int Height = 500;
                 
+                vec2 lookup(int x, int y) {
+                    return texture(Texture, vec2((x + Width) % Width, (y + Height) % Height)).rg;
+                }
+                
                 vec3 hsv2rgb(vec3 c) {
                   vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
                   vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
                   return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
                 }
-                
-                vec2 lookup(int x, int y) {
-                    return texelFetch(Texture, ivec2((x + Width) % Width, (y + Height) % Height), 0).rg;
-                }
 
                 void main() {
-                    vec4 input = texture(Texture, v_text);
+                
+                    //vec4 input = texture(Texture, vec2((v_text.x - 1 + Width) % Width, (v_text.y + Height) % Height));
+                    //vec2 input = texture(Texture, vec2(v_text.r - 1, v_text.g)).rg;
+                    // vec2 input = texelFetch(Texture, v_text).rg;
+                    vec2 input = texture(Texture, vec2(v_text.r, v_text.g)).rg;
                     
-                    vec2 left = lookup(in_text.x - 1, in_text.y);
-                    vec2 right = lookup(in_text.x + 1, in_text.y);
-                    vec2 down = lookup(in_text.x, in_text.y - 1);
-                    vec2 up = lookup(in_text.x, in_text.y + 1);
-                    
-                    vec2 grad = (right - left + up - down) / 2.0;
+                    vec2 left = texture(Texture, vec2(v_text.r - 1, v_text.g)).rg;
+                    vec2 right = texture(Texture, vec2(v_text.r + 1, v_text.g)).rg;
+                    vec2 down = texture(Texture, vec2(v_text.r, v_text.g - 1)).rg;
+                    vec2 up = texture(Texture, vec2(v_text.r, v_text.g + 1)).rg;
+                    //*/
+                    // out_vert = (left + right + up + down + center) / 5.0;
+                    vec2 grad = vec2(right - left, up - down) / 2.0;
+                    if (grad.r*grad.r+grad.g*grad.g < 0.00000000000) {
+                        input = grad;
+                    }
                     
                     float mag = input.r*input.r+input.g*input.g;
                     mag = sqrt(mag);
