@@ -211,7 +211,7 @@ void main()
 pos_compute_shader_code = """
 #version 430
 #define GROUP_SIZE """ + str(GROUP_SIZE) + """
-#define TIMESTEP 0.00001
+#define TIMESTEP 0.001
 
 layout(local_size_x=GROUP_SIZE) in;
 
@@ -271,7 +271,7 @@ void main()
     int x = n % width;
     int y = n / width;
     
-    float ACC_STRENGTH = 1;
+    float ACC_STRENGTH = 10;
     
     FieldPoint in_point = pointAt(x,y);
     
@@ -293,12 +293,13 @@ void main()
     neighbor_avg /= 4.0;
     
     
-    //vec2 out_pos = in_point.pos + TIMESTEP * (in_point.vel + ACC_STRENGTH*TIMESTEP * acc / 2.0);
-    //vec2 out_vel = in_point.vel + TIMESTEP * (ACC_STRENGTH * acc + neighbor_pos_diff ) / 2.0;
+    vec2 out_pos = in_point.pos + TIMESTEP * (in_point.vel + neighbor_pos_diff*0 + ACC_STRENGTH*TIMESTEP * acc / 2.0);
+    vec2 out_vel = in_point.vel + ACC_STRENGTH * TIMESTEP * (acc + neighbor_pos_diff ) / 2.0;
+    //out_vel = neighbor_pos_diff * 10;
     
-    vec2 out_pos = in_point.pos + neighbor_pos_diff * TIMESTEP * 10000;
-    vec2 out_vel = in_point.vel + neighbor_pos_diff * 1.0;
-    out_vel *= 0;
+    //vec2 out_pos = in_point.pos + neighbor_pos_diff * TIMESTEP * 10000;
+    //vec2 out_vel = in_point.vel + neighbor_pos_diff * 1.0;
+    //out_vel *= 0.99999;
     
     float mag_to_give = exchanged(x,y, 0, 1)
         + exchanged(x,y, 0, -1)
@@ -330,14 +331,14 @@ window_cls = mglw.get_window_cls(window_str)
 window = window_cls(
     title="My Window",
     gl_version=(4, 1),
-    size=(1024, 1024),
+    size=(1324, 1324),
     aspect_ratio=aspect_ratio,
 
 )
 ctx = window.ctx
 mglw.activate_context(ctx=ctx)
 
-with open("adaptive_domain_coloring_glsl.txt") as file:
+with open("domain_color_util_1_glsl.txt") as file:
     util_shader_code = file.read()
 
 prog = ctx.program(
@@ -367,8 +368,19 @@ prog = ctx.program(
                 void main() {
                     f_color = texture(Texture, vec2(v_text.x / 2.0 - 1.5, v_text.y / 2.0 - 1.5));
                     //float mag = sqrt(f_color.x*f_color.x + f_color.y*f_color.y);
-                    //f_color = vec4(mag, mag, mag, 1);
-                    f_color = vec4(imagineColor(f_color.xy * 100));
+                    f_color = vec4(domainColoring (
+                      f_color.rg * 100,
+                      vec2(5,5),
+                      1.0,
+                      vec2(5,5),
+                      1.0,
+                      0.45,
+                      14.8,
+                      0.1,
+                      1.6,
+                      0.0
+                    ),1);
+                    //f_color = vec4(imagineColor(f_color.xy * 100));
                 }
             '''
         )
@@ -401,8 +413,8 @@ initial_data_acc = np.zeros_like(initial_data_a)
 #         dist = np.sqrt((x - center[0])**2 + (y - center[1])**2)
 #         if (dist < 100):
 #             initial_data_a[x,y,0] = (100 - dist) / 100
-add_point(initial_data_a, 400, 400, turns=1)
-add_point(initial_data_a, 600, 600, turns=1)
+add_point(initial_data_a, 400, 400, turns=2)
+add_point(initial_data_a, 600, 600, turns=2)
 
 context = mg.create_context()
 point_buffer_a = context.buffer(np.array(initial_data_a, dtype='f4').tobytes())
@@ -444,7 +456,8 @@ for iter in range(100000):
     window.clear()
     ctx.clear(1.0, 1.0, 1.0)
     # texture.write(acc_buffer.read())
-    texture.write(grad_buffer.read())
+    # texture.write(grad_buffer.read())
+    texture.write(point_buffer_a.read())
     texture.use()
     vao.render(mg.TRIANGLE_STRIP)
     window.swap_buffers()
