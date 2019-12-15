@@ -1,0 +1,6 @@
+Field that emulates gravity g(x)
+
+mass adds to the "velocity" of g, dg/dt
+g decays with half life lambda g (L_g)
+
+should stabalize?
