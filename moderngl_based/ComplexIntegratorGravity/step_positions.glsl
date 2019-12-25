@@ -11,7 +11,7 @@ out vec2 out_acc;
 
 const float NeighborForceMagnitude = 1.0;
 const float AbsoluteForceMagnitude = -1.0;
-const float Timestep = 0.1;
+const float Timestep = 0.01;
 
 vec2 vel(int x, int y) {
     return texelFetch(VelocitiesTexture, ivec2((x + Width) % Width, (y + Height) % Height), 0).rg;

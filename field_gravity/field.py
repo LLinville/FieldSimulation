@@ -3,12 +3,12 @@ import matplotlib.pyplot as plt
 from runge_kutta_integrate import runge_kutta_force as force
 # from runge_kutta_integrate import simple_force as force
 from coloring import colorize
-import cplot
+import math
 
 def add_mass(current, cx, cy, width=15, amount=1):
     for dx in range(width//-2, width//2):
         for dy in range(width//-2, width//2):
-            current[cx+dx, cy+dy] += amount / max(1, (10*dx/width)**2+(10*dy/width)**2)
+            current[cx+dx, cy+dy] += amount / max(1, (10*dx/width)**2+(10*dy/width)**2) / width**2
 
 def mass_to_gain(mass, pull):
     # return (
@@ -33,10 +33,10 @@ SIZE = 70
 g = np.zeros((SIZE, SIZE), dtype=complex)
 
 # strength of gravity
-G = 0.1
+G = 1.5
 
 # diffusion speed of mass
-MASS_SPREAD_RATE = 11
+MASS_SPREAD_RATE = 1111.1
 
 # rate of change of g
 dg_dt = np.zeros_like(g)
@@ -48,38 +48,57 @@ mass = np.zeros_like(g)
 # mass[30:32,30:32] = 1
 
 
-add_mass(mass, 30,30, width=30, amount=1)
-add_mass(mass, 40,40, width=20, amount=5.5)
+# add_mass(mass, 30,30, width=20, amount=1)
+add_mass(mass, 40,40, width=20, amount=1)
+
 # mass[20:35, 20:35] = 1
 # mass[35, 30] = 1
 
 
 # timestep
-dt = 0.1
+dt = 0.005
 
 total_iterations = 1000000
-substeps = 10
+substeps = 300
 for i in range(total_iterations):
     print(f'Iteration: {i}')
 
-    # if i % 20 < 10:
+    # if i % 40 < 10:
     #     mass = np.roll(mass, 1, axis=0)
-    # else:
+    # elif i%40 < 20:
+    #     mass = np.roll(mass, -1, axis=1)
+    # elif i % 40 < 30:
     #     mass = np.roll(mass, -1, axis=0)
+    # else:
+    #     mass = np.roll(mass, 1, axis=1)
+
+    # if i%40 < 20:
+    #     mass = np.roll(mass, 2, axis=0)
+    # else:
+    #     mass = np.roll(mass, -2, axis=0)
+
+    # mass[30, 30] = math.sin(i / 10 * math.pi)
+    # mass[40, 30] = math.sin(i / -10 * math.pi)
+    # mass[30,30] = 10
+    # mass[40, 40] = 30
     print(np.sum(mass))
     # print(np.sum(mass_to_lose(mass, g)))
     for substep in range(substeps):
         # dg_dt += force(g,dt=dt)
         mass_grad = (np.roll(mass, -1, axis=1) - np.roll(mass, 1, axis=1)) / 2 + 1j * (np.roll(mass, -1, axis=0) - np.roll(mass, 1, axis=0)) / 2
         g += mass_grad * dt
-        # g += force(g, dt=dt)
-        mass += force(mass, dt=dt) * MASS_SPREAD_RATE
+        # dg_dt += mass_grad * dt
+        # g += dg_dt * dt
+        # dg_dt += force(dg_dt, dt=dt*1)
+        g += force(g, dt=dt)
+        mass += force(mass, dt=dt) * MASS_SPREAD_RATE * mass
         mass += mass_to_gain(mass, g) * dt * G
 
 
         # g += dg_dt * dt + mass * dt
         # dg_dt += mass * dt
-        g *= 0.999
+        # dg_dt *= 0.999
+        g *= 0.9999
         # g += force(g,dt=dt)
 
 
@@ -90,8 +109,9 @@ for i in range(total_iterations):
     plt.imshow(colorize(g.transpose()))
     plt.subplot(2, 2, 3)
     plt.imshow((mass_to_gain(mass, g) * dt * G).real)
+    # plt.imshow(colorize(dg_dt.transpose()))
     plt.subplot(2, 2, 4)
-    plt.imshow((force(mass, dt=dt) * MASS_SPREAD_RATE).real + (mass_to_gain(mass, g) * dt * G).real)
+    plt.imshow((force(mass, dt=dt) * MASS_SPREAD_RATE * mass).real + (mass_to_gain(mass, g) * dt * G).real)
     plt.draw_all()
     plt.pause(0.001)
     plt.clf()

@@ -129,17 +129,18 @@ prog = ctx.program(
                     void main() {
                         f_color = texture(Texture, vec2(v_text.x / 2.0 - 1.5, v_text.y / 2.0 - 1.5));
                         //float mag = sqrt(f_color.x*f_color.x + f_color.y*f_color.y);
+                        //f_color = vec4(mag, mag, mag,0);
                         f_color = vec4(domainColoring (
-                          f_color.rg * 100,
-                          vec2(5,5),
-                          1.0,
-                          vec2(5,5),
-                          1.0,
-                          0.45,
-                          14.8,
-                          0.1,
-                          1.6,
-                          0.0
+                          f_color.rg * 10, // z
+                          vec2(5,5), // vec2 polarGridSpacing
+                          0.0, // float polarGridStrength
+                          vec2(5,5), // vec2 rectGridSpacing
+                          0.1, // float rectGridStrength
+                          0.45, // float poleLightening
+                          11.8, // float poleLighteningSharpness
+                          1.1, // float rootDarkening
+                          1*1.6, // float rootDarkeningSharpness
+                          0.0 // float lineWidth
                         ),1);
                         //f_color = vec4(imagineColor(f_color.xy * 100));
                     }
@@ -148,14 +149,14 @@ prog = ctx.program(
 
 vertices = np.array([-1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0])
 # vertices = np.array([0, 0, 0, 1.0, 1.0, 0, 1.0, 1.0])
-texture = ctx.texture((width, height), 4, np.zeros((width, height, 4), dtype='f4').tobytes(), dtype='f4')
+texture = ctx.texture((width, height), 2, np.zeros((width, height,2), dtype='f4').tobytes(), dtype='f4')
 
 vbo = ctx.buffer(vertices.astype('f4').tobytes())
 vao = ctx.simple_vertex_array(prog, vbo, 'in_vert')
 
 initial_data_a = np.zeros((width, height, 4))
 initial_data_b = np.zeros_like(initial_data_a)
-initial_data_acc = np.zeros_like(initial_data_a)
+initial_data_acc = np.zeros((width, height, 2))
 # initial_data_a[150:-150,150:-150,0] = 1.0
 # initial_data_a[150:-150,150:-150,2] = 0.0
 # for x in range(width):
@@ -174,26 +175,28 @@ initial_data_acc = np.zeros_like(initial_data_a)
 #         dist = np.sqrt((x - center[0])**2 + (y - center[1])**2)
 #         if (dist < 100):
 #             initial_data_a[x,y,0] = (100 - dist) / 100
-add_point(initial_data_a, 400, 400, turns=2)
-add_point(initial_data_a, 600, 600, turns=2)
+add_point(initial_data_a, 400, 400, turns=1)
+add_point(initial_data_a, 600, 600, turns=0)
 
 context = mg.create_context()
 point_buffer_a = context.buffer(np.array(initial_data_a, dtype='f4').tobytes())
 point_buffer_b = context.buffer(np.array(initial_data_b, dtype='f4').tobytes())
 acc_buffer = context.buffer(np.array(initial_data_acc, dtype='f4').tobytes())
 grad_buffer = context.buffer(np.array(initial_data_acc, dtype='f4').tobytes())
+grav_buffer = context.buffer(np.array(initial_data_acc, dtype='f4').tobytes())
 
 pos_compute_shader = context.compute_shader(pos_compute_shader_code)
 acc_compute_shader = context.compute_shader(acc_compute_shader_code)
 grad_compute_shader = context.compute_shader(grad_compute_shader_code)
 acc_buffer.bind_to_storage_buffer(3)
 grad_buffer.bind_to_storage_buffer(4)
+grav_buffer.bind_to_storage_buffer(5)
 # text = ctx.buffer(grid.tobytes())
 # tao = ctx.simple_vertex_array(prog, text, 'in_text')
 
 toggle = False
 for iter in range(100000):
-    for substep in range(1000):
+    for substep in range(10):
 
         toggle = not toggle
         if toggle:
@@ -214,11 +217,15 @@ for iter in range(100000):
     window.clear()
     ctx.clear(1.0, 1.0, 1.0)
     # texture.write(acc_buffer.read())
-    # texture.write(grad_buffer.read())
-    texture.write(point_buffer_a.read())
+    texture.write(grad_buffer.read())
+    # texture.write(point_buffer_a.read())
+    # texture.write(grav_buffer.read())
     texture.use()
     vao.render(mg.TRIANGLE_STRIP)
     window.swap_buffers()
+
+    print(f'total_grav {np.sum(np.frombuffer(grav_buffer.read(), dtype="f4"))}')
+
 
 # config = mglw.WindowConfig(context)
 # config.window_size = window_size
