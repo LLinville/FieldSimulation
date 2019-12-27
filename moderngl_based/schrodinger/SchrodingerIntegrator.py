@@ -8,7 +8,7 @@ from util import add_point
 
 GROUP_SIZE = 1024
 
-"""pos_compute_shader_code = '''
+"""wavefunc_compute_shader_code = '''
 version 330
 
 const float PI = 3.1415926535897932384626433832795;
@@ -59,26 +59,26 @@ void main() {
 with open("fragment_shader.glsl") as shader_file:
     frag_shader_code = shader_file.read()
 
-with open("grad_compute_shader.glsl") as shader_file:
-    grad_compute_shader_code = shader_file.read()
-
+# with open("grad_compute_shader.glsl") as shader_file:
+#     grad_compute_shader_code = shader_file.read()
+#
 with open("pot_compute_shader.glsl") as shader_file:
-    acc_compute_shader_code = shader_file.read()
+    pot_compute_shader_code = shader_file.read()
 
 with open("wavefunc_compute_shader.glsl") as shader_file:
-    pos_compute_shader_code = shader_file.read()
+    wavefunc_compute_shader_code = shader_file.read()
 
-grad_compute_shader_code = """
+# grad_compute_shader_code = """
+# #version 430
+# #define GROUP_SIZE """ + str(GROUP_SIZE) + grad_compute_shader_code
+#
+pot_compute_shader_code = """
 #version 430
-#define GROUP_SIZE """ + str(GROUP_SIZE) + grad_compute_shader_code
+#define GROUP_SIZE """ + str(GROUP_SIZE) + pot_compute_shader_code
 
-acc_compute_shader_code = """
+wavefunc_compute_shader_code = """
 #version 430
-#define GROUP_SIZE """ + str(GROUP_SIZE) + acc_compute_shader_code
-
-pos_compute_shader_code = """
-#version 430
-#define GROUP_SIZE """ + str(GROUP_SIZE) + pos_compute_shader_code
+#define GROUP_SIZE """ + str(GROUP_SIZE) + wavefunc_compute_shader_code
 
 gl_version = (4, 3)
 title = "ModernGL shader view"
@@ -157,7 +157,7 @@ vao = ctx.simple_vertex_array(prog, vbo, 'in_vert')
 
 initial_data_a = np.zeros((width, height, 4))
 initial_data_b = np.zeros_like(initial_data_a)
-initial_data_acc = np.zeros((width, height, 2))
+initial_data_pot = np.zeros((width, height, 2))
 # initial_data_a[150:-150,150:-150,0] = 1.0
 # initial_data_a[150:-150,150:-150,2] = 0.0
 # for x in range(width):
@@ -182,16 +182,17 @@ add_point(initial_data_a, 600, 600, turns=0)
 context = mg.create_context()
 point_buffer_a = context.buffer(np.array(initial_data_a, dtype='f4').tobytes())
 point_buffer_b = context.buffer(np.array(initial_data_b, dtype='f4').tobytes())
-acc_buffer = context.buffer(np.array(initial_data_acc, dtype='f4').tobytes())
-grad_buffer = context.buffer(np.array(initial_data_acc, dtype='f4').tobytes())
-grav_buffer = context.buffer(np.array(initial_data_acc, dtype='f4').tobytes())
+pot_buffer = context.buffer(np.array(initial_data_pot, dtype='f4').tobytes())
+# grad_buffer = context.buffer(np.array(initial_data_acc, dtype='f4').tobytes())
+# grav_buffer = context.buffer(np.array(initial_data_acc, dtype='f4').tobytes())
 
-pos_compute_shader = context.compute_shader(pos_compute_shader_code)
-acc_compute_shader = context.compute_shader(acc_compute_shader_code)
-grad_compute_shader = context.compute_shader(grad_compute_shader_code)
-acc_buffer.bind_to_storage_buffer(3)
-grad_buffer.bind_to_storage_buffer(4)
-grav_buffer.bind_to_storage_buffer(5)
+wavefunc_compute_shader = context.compute_shader(wavefunc_compute_shader_code)
+pot_compute_shader = context.compute_shader(pot_compute_shader_code)
+# grad_compute_shader = context.compute_shader(grad_compute_shader_code)
+
+pot_buffer.bind_to_storage_buffer(3)
+# grad_buffer.bind_to_storage_buffer(4)
+# grav_buffer.bind_to_storage_buffer(5)
 # text = ctx.buffer(grid.tobytes())
 # tao = ctx.simple_vertex_array(prog, text, 'in_text')
 
@@ -215,9 +216,9 @@ for iter in range(100000):
         point_buffer_a.bind_to_storage_buffer(a)
         point_buffer_b.bind_to_storage_buffer(b)
 
-        grad_compute_shader.run(group_x=GROUP_SIZE)
-        acc_compute_shader.run(group_x=GROUP_SIZE)
-        pos_compute_shader.run(group_x=GROUP_SIZE)
+        # grad_compute_shader.run(group_x=GROUP_SIZE)
+        pot_compute_shader.run(group_x=GROUP_SIZE)
+        wavefunc_compute_shader.run(group_x=GROUP_SIZE)
 
     print(iter)
     window.clear()
@@ -231,7 +232,7 @@ for iter in range(100000):
     vao.render(mg.TRIANGLE_STRIP)
     window.swap_buffers()
 
-    print(f'total_grav {np.sum(np.frombuffer(grav_buffer.read(), dtype="f4"))}')
+    # print(f'total_grav {np.sum(np.frombuffer(grav_buffer.read(), dtype="f4"))}')
 
 
 # config = mglw.WindowConfig(context)

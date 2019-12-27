@@ -33,10 +33,10 @@ SIZE = 70
 g = np.zeros((SIZE, SIZE), dtype=complex)
 
 # strength of gravity
-G = 1.5
+G = 10.5
 
 # diffusion speed of mass
-MASS_SPREAD_RATE = 1111.1
+MASS_SPREAD_RATE = 11111.1
 
 # rate of change of g
 dg_dt = np.zeros_like(g)
@@ -48,15 +48,15 @@ mass = np.zeros_like(g)
 # mass[30:32,30:32] = 1
 
 
-# add_mass(mass, 30,30, width=20, amount=1)
-add_mass(mass, 40,40, width=20, amount=1)
+add_mass(mass, 30,30, width=40, amount=0.05)
+add_mass(mass, 40,40, width=40, amount=0.05)
 
 # mass[20:35, 20:35] = 1
 # mass[35, 30] = 1
 
 
 # timestep
-dt = 0.005
+dt = 0.5
 
 total_iterations = 1000000
 substeps = 300
@@ -86,19 +86,22 @@ for i in range(total_iterations):
     for substep in range(substeps):
         # dg_dt += force(g,dt=dt)
         mass_grad = (np.roll(mass, -1, axis=1) - np.roll(mass, 1, axis=1)) / 2 + 1j * (np.roll(mass, -1, axis=0) - np.roll(mass, 1, axis=0)) / 2
-        g += mass_grad * dt
+        for g_spread_iter in range(10):
+            g += mass_grad * dt
+            g += force(g, dt=dt)
+            g *= 0.999
         # dg_dt += mass_grad * dt
         # g += dg_dt * dt
         # dg_dt += force(dg_dt, dt=dt*1)
-        g += force(g, dt=dt)
-        mass += force(mass, dt=dt) * MASS_SPREAD_RATE * mass
+
+        mass += force(mass, dt=dt) * MASS_SPREAD_RATE * MASS_SPREAD_RATE * mass * mass
         mass += mass_to_gain(mass, g) * dt * G
 
 
         # g += dg_dt * dt + mass * dt
         # dg_dt += mass * dt
         # dg_dt *= 0.999
-        g *= 0.9999
+
         # g += force(g,dt=dt)
 
 
@@ -111,7 +114,7 @@ for i in range(total_iterations):
     plt.imshow((mass_to_gain(mass, g) * dt * G).real)
     # plt.imshow(colorize(dg_dt.transpose()))
     plt.subplot(2, 2, 4)
-    plt.imshow((force(mass, dt=dt) * MASS_SPREAD_RATE * mass).real + (mass_to_gain(mass, g) * dt * G).real)
+    plt.imshow((force(mass, dt=dt) * MASS_SPREAD_RATE * MASS_SPREAD_RATE * mass * mass).real)# + (mass_to_gain(mass, g) * dt * G).real)
     plt.draw_all()
     plt.pause(0.001)
     plt.clf()
