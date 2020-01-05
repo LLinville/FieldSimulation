@@ -4,7 +4,7 @@ import random
 import numpy as np
 import moderngl as mg
 import moderngl_window as mglw
-from util import add_point
+from util import add_point, add_packet, total_mag
 
 GROUP_SIZE = 1024
 
@@ -62,10 +62,10 @@ with open("fragment_shader.glsl") as shader_file:
 with open("grad_compute_shader.glsl") as shader_file:
     grad_compute_shader_code = shader_file.read()
 
-with open("pot_compute_shader.glsl") as shader_file:
+with open("acc_compute_shader.glsl") as shader_file:
     acc_compute_shader_code = shader_file.read()
 
-with open("wavefunc_compute_shader.glsl") as shader_file:
+with open("pos_compute_shader.glsl") as shader_file:
     pos_compute_shader_code = shader_file.read()
 
 grad_compute_shader_code = """
@@ -92,7 +92,7 @@ window_cls = mglw.get_window_cls(window_str)
 window = window_cls(
     title="My Window",
     gl_version=(4, 1),
-    size=(1324, 1324),
+    size=(1024, 1024),
     aspect_ratio=aspect_ratio,
 
 )
@@ -127,7 +127,7 @@ prog = ctx.program(
                     '''
     
                     void main() {
-                        f_color = texture(Texture, vec2(v_text.x / 2.0 - 1.5, v_text.y / 2.0 - 1.5));
+                        f_color = texture(Texture, vec2(1.0 - (v_text.y/2.0 - 0.5), v_text.x/2.0 - 0.5));
                         //float mag = sqrt(f_color.x*f_color.x + f_color.y*f_color.y);
                         //f_color = vec4(mag, mag, mag,0);
                         f_color = vec4(domainColoring (
@@ -135,13 +135,17 @@ prog = ctx.program(
                           vec2(5,5), // vec2 polarGridSpacing
                           0.0, // float polarGridStrength
                           vec2(5,5), // vec2 rectGridSpacing
-                          0.1, // float rectGridStrength
+                          0.0, // float rectGridStrength
                           0.45, // float poleLightening
                           11.8, // float poleLighteningSharpness
-                          0.8, // float rootDarkening
-                          0.1*1.6, // float rootDarkeningSharpness
+                          1*0.9, // float rootDarkening
+                          0.1*1.0, // float rootDarkeningSharpness
                           0.0 // float lineWidth
                         ),1);
+                        //f_color = vec4(v_text.x, v_text.y, 0, 0);
+                        //if(v_text.x > 0.5){
+                        //    f_color = vec4(1,1,1,1);
+                        //}
                         //f_color = vec4(imagineColor(f_color.xy * 100));
                     }
                 '''
@@ -149,6 +153,7 @@ prog = ctx.program(
 
 texture_depth = 4
 vertices = np.array([-1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0])
+# vertices = np.array([-20.0, -20.0, -20.0, 20.0, 20.0, -20.0, 20.0, 20.0])
 # vertices = np.array([0, 0, 0, 1.0, 1.0, 0, 1.0, 1.0])
 texture = ctx.texture((width, height), texture_depth, np.zeros((width, height,texture_depth), dtype='f4').tobytes(), dtype='f4')
 
@@ -177,7 +182,8 @@ initial_data_acc = np.zeros((width, height, 2))
 #         if (dist < 100):
 #             initial_data_a[x,y,0] = (100 - dist) / 100
 # add_point(initial_data_a, 400, 400, turns=1)
-add_point(initial_data_a, 600, 600, turns=0)
+# add_point(initial_data_a, 300, 600, turns=0)
+add_packet(initial_data_a, 300, 600, momentum=1)
 
 context = mg.create_context()
 point_buffer_a = context.buffer(np.array(initial_data_a, dtype='f4').tobytes())
@@ -195,14 +201,18 @@ grav_buffer.bind_to_storage_buffer(5)
 # text = ctx.buffer(grid.tobytes())
 # tao = ctx.simple_vertex_array(prog, text, 'in_text')
 
+starting_mag = total_mag(point_buffer_a)
 
-def mouse_func(window, x,y):
-    window.title = f'{x} {y}'
-window.mouse_position_event_func = lambda x,y: mouse_func(window,x,y)
+
+def mouse_func(x,y):
+    value = np.reshape(np.frombuffer(point_buffer_a.read(), dtype="f4"), (-1, 1024,4))[x,y,0:2]
+    print(x,y, np.sqrt(np.sum(value * value)))
+    # print(x,y)
+window.mouse_position_event_func = mouse_func
 
 toggle = False
 for iter in range(100000):
-    for substep in range(1000):
+    for substep in range(100):
 
         toggle = not toggle
         if toggle:
@@ -215,23 +225,28 @@ for iter in range(100000):
         point_buffer_a.bind_to_storage_buffer(a)
         point_buffer_b.bind_to_storage_buffer(b)
 
-        grad_compute_shader.run(group_x=GROUP_SIZE)
-        acc_compute_shader.run(group_x=GROUP_SIZE)
+        # grad_compute_shader.run(group_x=GROUP_SIZE)
+        # acc_compute_shader.run(group_x=GROUP_SIZE)
         pos_compute_shader.run(group_x=GROUP_SIZE)
 
-    print(iter)
+    # print(iter)
     window.clear()
     ctx.clear(1.0, 1.0, 1.0)
     # texture.write(acc_buffer.read())
     # texture.write(grad_buffer.read())
-    texture.write(point_buffer_a.read())
+    points = np.reshape(np.frombuffer(point_buffer_a.read(), dtype="f4"), (-1, 1024,4))
+    total = total_mag(point_buffer_a)
+    normalized = points * starting_mag / total
+    point_buffer_a.write(normalized.tobytes())
+    print(f'total mag: {total} \t normalized total: {total_mag(point_buffer_a)}')
+    texture.write(normalized.tobytes())
     # grav_data = np.frombuffer(grav_buffer.read(), dtype="f4")
     # texture.write(grav_buffer.read())
     texture.use()
     vao.render(mg.TRIANGLE_STRIP)
     window.swap_buffers()
 
-    print(f'total_grav {np.sum(np.frombuffer(grav_buffer.read(), dtype="f4"))}')
+    # print(f'total_grav {np.sum(np.frombuffer(grav_buffer.read(), dtype="f4"))}')
 
 
 # config = mglw.WindowConfig(context)

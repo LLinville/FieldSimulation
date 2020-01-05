@@ -19,6 +19,10 @@ layout(std430, binding=3) buffer acc_in
 {
     vec2 acc[];
 } Acc;
+layout(std430, binding=4) buffer grad_in
+{
+    vec2 grad[];
+} Grad;
 
 FieldPoint pointAt(int x, int y) {
     int width = 1024;
@@ -30,6 +34,12 @@ vec2 accAt(int x, int y) {
     int width = 1024;
     int height = 1024;
     return Acc.acc[(y) * width + x];
+}
+
+vec2 gradAt(int x, int y) {
+    int width = 1024;
+    int height = 1024;
+    return Grad.grad[(y) * width + x];
 }
 
 void main()
@@ -48,5 +58,6 @@ void main()
         + pointAt(x, y-1).pos
         + pointAt(x, y+1).pos;
 
-    Acc.acc[n] = 0*neighbor_pos_diff / 4.0;
+    vec2 pos = in_point.pos;
+    Acc.acc[n] = gradAt(x,y) + (1 - (pos.x*pos.x + pos.y*pos.y)) * pos;
 }

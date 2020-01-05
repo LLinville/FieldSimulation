@@ -79,12 +79,13 @@ void main()
     int x = n % width;
     int y = n / width;
 
-    float ACC_STRENGTH = 10;
+    float ACC_STRENGTH = 0.1;
     float GRAV_STRENGTH = 0.051;
 
     FieldPoint in_point = pointAt(x,y);
 
     vec2 acc = accAt(x,y);
+    vec2 pos = pointAt(x,y).pos;
 
     vec2 neighbor_pos_diff = -4.0 * in_point.pos
         + pointAt(x-1, y).pos
@@ -95,49 +96,63 @@ void main()
     neighbor_pos_diff /= 4.0;
     //neighbor_pos_diff *= 0.0;
 
-    vec2 neighbor_avg = pointAt(x-1, y).pos
-        + pointAt(x+1, y).pos
-        + pointAt(x, y-1).pos
-        + pointAt(x, y+1).pos;
-    neighbor_avg /= 4.0;
+//    vec2 neighbor_avg = pointAt(x-1, y).pos
+//        + pointAt(x+1, y).pos
+//        + pointAt(x, y-1).pos
+//        + pointAt(x, y+1).pos;
+//    neighbor_avg /= 4.0;
 
     float SPREAD_STRENGTH = 11.0;
-    vec2 neighbor_pull = (spread_received(x, y, 0, 1) + spread_received(x, y, 0, -1) + spread_received(x, y, 1, 0) + spread_received(x, y, -1, 0)) / 4.0;
+//    vec2 neighbor_pull = (spread_received(x, y, 0, 1) + spread_received(x, y, 0, -1) + spread_received(x, y, 1, 0) + spread_received(x, y, -1, 0)) / 4.0;
+//    vec2 force = neighbor_pull*SPREAD_STRENGTH + ACC_STRENGTH*TIMESTEP * acc;
+//    vec2 force = acc;
 
-    vec2 out_pos = in_point.pos + TIMESTEP * (in_point.vel + neighbor_pull*SPREAD_STRENGTH + ACC_STRENGTH*TIMESTEP * acc / 2.0);
-    vec2 out_vel = in_point.vel + ACC_STRENGTH * TIMESTEP * (acc + neighbor_pull*0 ) / 2.0;
+    float mag_squared = pos.x * pos.x + pos.y * pos.y;
+//    vec2 force = (neighbor_avg - pos) * 1 + 0.01*(1 - mag_squared) * pos;
+    vec2 force = vec2(-1.0 * neighbor_pos_diff.y, 1.0 * neighbor_pos_diff.x) * -1;
+
+//    vec2 out_pos = in_point.pos + TIMESTEP * (in_point.vel + force / 2.0);
+//    vec2 out_vel = in_point.vel + ACC_STRENGTH * TIMESTEP * (force ) / 2.0;
     //out_vel += neighbor_pos_diff * 1;
 
     //vec2 out_pos = in_point.pos + neighbor_pos_diff * TIMESTEP * 100;
     //vec2 out_vel = in_point.vel + neighbor_pos_diff * 1.0;
-    out_vel *= 0.9999;
+//    out_vel *= 0.9999;
 
-    float mag_to_give = received(x,y, 0, 1)
-        + received(x,y, 0, -1)
-        + received(x,y, 1, 0)
-        + received(x,y, -1, 0);
-
-    vec2 neighbor_grav_avg = gravAt(x-1, y)
-        + gravAt(x+1, y)
-        + gravAt(x, y-1)
-        + gravAt(x, y+1);
-    neighbor_avg /= 4.0;
+//    float mag_to_give = received(x,y, 0, 1)
+//        + received(x,y, 0, -1)
+//        + received(x,y, 1, 0)
+//        + received(x,y, -1, 0);
+//
+//    vec2 neighbor_grav_avg = gravAt(x-1, y)
+//        + gravAt(x+1, y)
+//        + gravAt(x, y-1)
+//        + gravAt(x, y+1);
+//    neighbor_avg /= 4.0;
 
     //float pos_mag = sqrt(dot(out_pos, out_pos));
-    if(mag_to_give > 0.000000){
-        //out_pos *= 1.1;
-    }
+//    if(mag_to_give > 0.000000){
+//        //out_pos *= 1.1;
+//    }
 
     //out_pos += mag_to_give * GRAV_STRENGTH;
 
-    //vec2 out_pos = in_point.pos;
+    vec2 in_rot = vec2(-1*in_point.pos.y, in_point.pos.x);
+
+    vec2 out_pos = in_point.pos;
+    vec2 out_vel = in_point.vel;
+    out_vel = force;
+    out_pos += in_point.vel * TIMESTEP;
+
+
+
 
     FieldPoint out_point;
     out_point.pos.xy = out_pos;
 
-    Grav.grav[n] += (neighbor_grav_avg - gravAt(x,y)) * TIMESTEP/100;
-    Grav.grav[n] += gradAt(x,y) * TIMESTEP/100;
-    Grav.grav[n] *= 0.999;
+//    Grav.grav[n] += (neighbor_grav_avg - gravAt(x,y)) * TIMESTEP/100;
+//    Grav.grav[n] += gradAt(x,y) * TIMESTEP/100;
+//    Grav.grav[n] *= 0.999;
     out_point.vel.xy = out_vel;
     //In.fieldPoints[n].pos = vec2(1.0,1.0);
     //Out.fieldPoints[n].pos = vec2(0.4,0.6);

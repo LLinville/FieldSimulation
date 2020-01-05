@@ -36,7 +36,7 @@ g = np.zeros((SIZE, SIZE), dtype=complex)
 G = 10.5
 
 # diffusion speed of mass
-MASS_SPREAD_RATE = 11111.1
+MASS_SPREAD_RATE = 1.1
 
 # rate of change of g
 dg_dt = np.zeros_like(g)
@@ -59,7 +59,7 @@ add_mass(mass, 40,40, width=40, amount=0.05)
 dt = 0.5
 
 total_iterations = 1000000
-substeps = 300
+substeps = 30
 for i in range(total_iterations):
     print(f'Iteration: {i}')
 
@@ -94,7 +94,7 @@ for i in range(total_iterations):
         # g += dg_dt * dt
         # dg_dt += force(dg_dt, dt=dt*1)
 
-        mass += force(mass, dt=dt) * MASS_SPREAD_RATE * MASS_SPREAD_RATE * mass * mass
+        mass += force(mass, dt=dt) * MASS_SPREAD_RATE * mass
         mass += mass_to_gain(mass, g) * dt * G
 
 
