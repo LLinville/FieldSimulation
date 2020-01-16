@@ -15,10 +15,10 @@ layout(std430, binding=2) buffer field_out
 {
     FieldPoint fieldPoints[];
 } Out;
-layout(std430, binding=3) buffer acc_in
+layout(std430, binding=3) buffer pot_in
 {
-    vec2 acc[];
-} Acc;
+    vec2 pot[];
+} Pot;
 
 FieldPoint pointAt(int x, int y) {
     int width = 1024;
@@ -26,10 +26,10 @@ FieldPoint pointAt(int x, int y) {
     return In.fieldPoints[(y) * width + x];
 }
 
-vec2 accAt(int x, int y) {
+vec2 potAt(int x, int y) {
     int width = 1024;
     int height = 1024;
-    return Acc.acc[(y) * width + x];
+    return Pot.pot[(y) * width + x];
 }
 
 void main()
@@ -48,5 +48,9 @@ void main()
         + pointAt(x, y-1).pos
         + pointAt(x, y+1).pos;
 
-    Acc.acc[n] = 0*neighbor_pos_diff / 4.0;
+
+    float dx = (width/2) - x;
+    float dy = (width/2) - y;
+    Pot.pot[n] = vec2(1.0 * (dx*dx + dy*dy) / (width * width), 0.0) * 5;
+    //Pot.pot[n] = 0;
 }

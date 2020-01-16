@@ -10,7 +10,7 @@ kappa = 0*10
 # NT = 40000
 # T, dt = np.linspace(0, 1, NT, retstep=True)
 
-dt = 0.0001
+dt = 0.0005
 T = np.arange(0, 4, dt)
 NT = T.size
 x, dx = np.linspace(0, 1, NG, retstep=True)

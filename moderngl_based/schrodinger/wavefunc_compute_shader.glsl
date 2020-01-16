@@ -1,7 +1,9 @@
 
-#define TIMESTEP 0.01
 
 layout(local_size_x=GROUP_SIZE) in;
+
+int width = 1024;
+int height = 1024;
 
 struct FieldPoint
 {
@@ -21,6 +23,26 @@ layout(std430, binding=3) buffer pot_in
 {
     vec2 pot[];
 } Pot;
+layout(std430, binding=4) buffer k1_in
+{
+    vec2 k1[];
+} K1;
+layout(std430, binding=5) buffer k2_in
+{
+    vec2 k2[];
+} K2;
+layout(std430, binding=6) buffer k3_in
+{
+    vec2 k3[];
+} K3;
+layout(std430, binding=7) buffer k4_in
+{
+    vec2 k4[];
+} K4;
+layout(std430, binding=8) buffer rk_step_in
+{
+    int rk_step;
+} RK_Step;
 //
 //layout(std430, binding=4) buffer grad_in
 //{
@@ -33,15 +55,47 @@ layout(std430, binding=3) buffer pot_in
 //} Grav;
 
 FieldPoint pointAt(int x, int y) {
-    int width = 1024;
-    int height = 1024;
+    if (x <= 0 || x >= 1024 || y <= 0 || y >= 1024) {
+        FieldPoint zero;
+        zero.pos = vec2(0.0,0.0);
+        zero.vel = zero.pos;
+        return zero;
+    }
     return In.fieldPoints[(y) * width + x];
 }
 
 vec2 potAt(int x, int y) {
-    int width = 1024;
-    int height = 1024;
+    if (x <= 0 || x >= 1024 || y <= 0 || y >= 1024) {
+        return vec2(0.0, 0.0);
+    }
     return Pot.pot[(y) * width + x];
+}
+vec2 k1At(int x, int y) {
+    if (x <= 0 || x >= 1024 || y <= 0 || y >= 1024) {
+        return vec2(0.0,0.0);
+    }
+    return K1.k1[(y) * width + x];
+}
+
+vec2 k2At(int x, int y) {
+    if (x <= 0 || x >= 1024 || y <= 0 || y >= 1024) {
+        return vec2(0.0,0.0);
+    }
+    return K2.k2[(y) * width + x];
+}
+
+vec2 k3At(int x, int y) {
+    if (x <= 0 || x >= 1024 || y <= 0 || y >= 1024) {
+        return vec2(0.0,0.0);
+    }
+    return K3.k3[(y) * width + x];
+}
+
+vec2 k4At(int x, int y) {
+    if (x <= 0 || x >= 1024 || y <= 0 || y >= 1024) {
+        return vec2(0.0,0.0);
+    }
+    return K4.k4[(y) * width + x];
 }
 //
 //vec2 gradAt(int x, int y) {
@@ -81,22 +135,22 @@ void main()
 
     FieldPoint in_point = pointAt(x,y);
 
-    vec2 pot = potAt(x,y);
+    float pot = potAt(x,y).x;
 
-    vec2 neighbor_pos_diff = -4.0 * in_point.pos
-        + pointAt(x-1, y).pos
-        + pointAt(x+1, y).pos
-        + pointAt(x, y-1).pos
-        + pointAt(x, y+1).pos;
-
-    neighbor_pos_diff /= 4.0;
-    //neighbor_pos_diff *= 0.0;
-
-//    vec2 neighbor_avg = pointAt(x-1, y).pos
+//    vec2 neighbor_pos_diff = -4.0 * in_point.pos
+//        + pointAt(x-1, y).pos
 //        + pointAt(x+1, y).pos
 //        + pointAt(x, y-1).pos
 //        + pointAt(x, y+1).pos;
-//    neighbor_avg /= 4.0;
+//
+//    neighbor_pos_diff /= 4.0;
+    //neighbor_pos_diff *= 0.0;
+
+    vec2 neighbor_avg = pointAt(x-1, y).pos
+        + pointAt(x+1, y).pos
+        + pointAt(x, y-1).pos
+        + pointAt(x, y+1).pos;
+    neighbor_avg /= 4.0;
 
 //    float SPREAD_STRENGTH = 11.0;
 //    vec2 neighbor_pull = (spread_received(x, y, 0, 1) + spread_received(x, y, 0, -1) + spread_received(x, y, 1, 0) + spread_received(x, y, -1, 0)) / 4.0;
@@ -127,10 +181,17 @@ void main()
 
     //out_pos += mag_to_give * GRAV_STRENGTH;
 
-    vec2 out_pos = in_point.pos;
+    vec2 change = (k1At(x, y) + 2.0 * k2At(x, y) + 2.0 * k3At(x, y) + k4At(x, y)) * TIMESTEP / 6.0;
+
+
+
+//    vec2 out_pos = in_point.pos + change;
+    float neighbor_fade_strength = 0.0001;
+    vec2 out_pos = (1.0 - neighbor_fade_strength) * in_point.pos + neighbor_fade_strength * neighbor_avg + change;
+    //out_pos = vec2( max(0.0, out_pos.x), max(0.0, out_pos.y));
 
     FieldPoint out_point;
-    out_point.pos.xy = out_pos;
+    out_point.pos.xy = out_pos ;
 
 //    Grav.grav[n] += (neighbor_grav_avg - gravAt(x,y)) * TIMESTEP/100;
 //    Grav.grav[n] += gradAt(x,y) * TIMESTEP/100;
