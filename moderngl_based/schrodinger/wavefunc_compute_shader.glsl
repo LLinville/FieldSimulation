@@ -186,7 +186,7 @@ void main()
 
 
 //    vec2 out_pos = in_point.pos + change;
-    float neighbor_fade_strength = 0.0001;
+    float neighbor_fade_strength = 0.0005;
     vec2 out_pos = (1.0 - neighbor_fade_strength) * in_point.pos + neighbor_fade_strength * neighbor_avg + change;
     //out_pos = vec2( max(0.0, out_pos.x), max(0.0, out_pos.y));
 

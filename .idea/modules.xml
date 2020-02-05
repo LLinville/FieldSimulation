@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/FieldSimulation.iml" filepath="$PROJECT_DIR$/.idea/FieldSimulation.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../graphicsMisc/.idea/graphicsMisc.iml" filepath="$PROJECT_DIR$/../graphicsMisc/.idea/graphicsMisc.iml" />
+    </modules>
+  </component>
+</project>

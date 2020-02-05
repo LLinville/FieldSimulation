@@ -107,8 +107,10 @@ vec4 imagineColor(vec2 z){
 
 //    hsv.y *=1 - pow(2.0, -mag/ 1);
     float h = (arg + pi)  / (2 * pi) + 0.5;
-
-    float l = 1.0 - 1.0/(1.0 + sqrt(sqrt((z.x*z.x+z.y*z.y))));
+    float m2 = (z.x*z.x+z.y*z.y);
+    float m = sqrt(m2);
+    float m_2 = sqrt(m);
+    float l = 1.0 - 1.0/(1.0 + sqrt(sqrt(m_2)));
     float s = 0.8;
 
     vec3 hsl = vec3(h,s,l);

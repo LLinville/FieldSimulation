@@ -49,8 +49,14 @@ void main()
         + pointAt(x, y+1).pos;
 
 
-    float dx = (width/2) - x;
-    float dy = (width/2) - y;
-    Pot.pot[n] = vec2(1.0 * (dx*dx + dy*dy) / (width * width), 0.0) * 5;
+    float dx = ((width/2.0) - x) / (width/2.0);
+    float dy = ((width/2.0) - y) / (width/2.0);
+    vec2 pot_out = vec2(1.0 * (dx*dx + dy*dy), 0.0) * 1.0;
+    if (x > 506 && x < 518) {
+        pot_out = vec2(1.0,1.0) * 0.20;
+    }
+//    vec2 pot_out = vec2(1.0 * (dx*dx*dx*dx + dy*dy*dy*dy), 0.0) * 0.1;
+    Pot.pot[n] = pot_out;
+
     //Pot.pot[n] = 0;
 }

@@ -11,56 +11,8 @@ import moderngl_window as mglw
 from util import add_point, add_packet, total_mag
 
 GROUP_SIZE = 1024
-timestep = 0.005
+timestep = 0.025
 
-"""wavefunc_compute_shader_code = '''
-version 330
-
-const float PI = 3.1415926535897932384626433832795;
-
-uniform sampler2D Texture;
-
-in vec2 v_text;
-out vec4 f_color;
-
-const int Width = 500;
-const int Height = 500;
-
-vec2 lookup(int x, int y) {
-    return texture(Texture, vec2((x + Width) % Width, (y + Height) % Height)).rg;
-}
-
-vec3 hsv2rgb(vec3 c) {
-  vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-}
-
-void main() {
-
-    //vec4 input = texture(Texture, vec2((v_text.x - 1 + Width) % Width, (v_text.y + Height) % Height));
-    //vec2 input = texture(Texture, vec2(v_text.r - 1, v_text.g)).rg;
-    // vec2 input = texelFetch(Texture, v_text).rg;
-    vec2 input = texture(Texture, vec2(v_text.r, v_text.g)).rg;
-
-    vec2 left = texture(Texture, vec2(v_text.r - 1, v_text.g)).rg;
-    vec2 right = texture(Texture, vec2(v_text.r + 1, v_text.g)).rg;
-    vec2 down = texture(Texture, vec2(v_text.r, v_text.g - 1)).rg;
-    vec2 up = texture(Texture, vec2(v_text.r, v_text.g + 1)).rg;
-    //*/
-    // out_vert = (left + right + up + down + center) / 5.0;
-    vec2 grad = vec2(right - left, up - down) / 2.0;
-    if (grad.r*grad.r+grad.g*grad.g < 0.00000000000) {
-        input = grad;
-    }
-
-    float mag = input.r*input.r+input.g*input.g;
-    mag = sqrt(mag);
-    vec3 hsv = vec3(atan(input.r, input.g)/(2*PI), 1, mag);// * 0.7 + 0.3);
-    vec3 rgb = hsv2rgb(hsv);
-    f_color = vec4(rgb.rgb, 1);
-}
-'''"""
 with open("fragment_shader.glsl") as shader_file:
     frag_shader_code = shader_file.read()
 
@@ -205,9 +157,9 @@ initial_data_pot = np.zeros((width, height, 2))
 #         if (dist < 100):
 #             initial_data_a[x,y,0] = (100 - dist) / 100
 # add_point(initial_data_a, 400, 400, turns=1)
-# add_point(initial_data_a, 600, 600, turns=1)
+# add_point(initial_data_a, 512, 552, turns=5, mag=0.1)
 # add_packet(initial_data_a, 300, 300, width=20, momentum=15)
-add_packet(initial_data_a, 600, 500, width=20, momentum=8, direction=math.pi/2)
+add_packet(initial_data_a, 512, 630, width=20, momentum=6, direction=2*math.pi/2)
 context = mg.create_context()
 point_buffer_a = context.buffer(np.array(initial_data_a, dtype='f4').tobytes())
 point_buffer_b = context.buffer(np.array(initial_data_b, dtype='f4').tobytes())
@@ -248,11 +200,12 @@ def mouse_func(window, x,y):
     print(f'pot: {pot}', value, np.sqrt(np.sum(value * value)))
 window.mouse_position_event_func = lambda x,y: mouse_func(window,x,y)
 
-OUTPUT_DIRPATH = "./output3"
+OUTPUT_DIRPATH = "./output8"
 Path(OUTPUT_DIRPATH).mkdir(parents=True, exist_ok=True)
 imgs = []
 toggle = False
-for iter in range(2000):
+pot_compute_shader.run(group_x=GROUP_SIZE)
+for iter in range(5500):
     for substep in range(1000):
 
         toggle = not toggle
@@ -267,7 +220,7 @@ for iter in range(2000):
         point_buffer_b.bind_to_storage_buffer(b)
 
         # grad_compute_shader.run(group_x=GROUP_SIZE)
-        pot_compute_shader.run(group_x=GROUP_SIZE)
+        # pot_compute_shader.run(group_x=GROUP_SIZE)
 
         # set k1, k2, k3, k4
 
@@ -305,7 +258,7 @@ for iter in range(2000):
     # starting_mag = 1
     # print(f'total mag: {total} \t normalized ratio: {starting_mag / total}')
     if not 100 < starting_mag / total < 0.01:
-        # print("RENORMALIZING")
+        print("RENORMALIZING")
         normalized = points * starting_mag / total
         point_buffer_a.write(normalized.tobytes())
         texture.write(normalized.tobytes())

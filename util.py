@@ -37,7 +37,7 @@ def add_packet(data, cx, cy, width=100, momentum=1, direction=0):
             dist = np.sqrt(dx ** 2 + dy ** 2)
             out = cmath.exp(-1*dist**2 + 1j * dx * momentum)
             if len(data.shape) == 2:
-                data[x, y] = out
+                data[x, y] += out
             else:
                 data[x, y, 0] += out.real
                 data[x, y, 1] += out.imag
@@ -45,3 +45,6 @@ def add_packet(data, cx, cy, width=100, momentum=1, direction=0):
 def total_mag(buffer):
     points = np.reshape(np.frombuffer(buffer.read(), dtype="f4"), (-1, 1024, 4))
     return np.sum(np.sqrt(points[:,:,0]*points[:,:,0] + points[:,:,1]*points[:,:,1]))
+
+
+def first_unoccupied
