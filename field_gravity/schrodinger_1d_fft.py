@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal.windows import gaussian
+from util import first_unoccupied
 import pickle
 from coloring import colorize
 from numpy import exp, dot, mean, fft, cos,sin,cosh,sqrt,absolute, array, transpose, var, conj
@@ -23,7 +24,7 @@ dx = xvector[1]
 xvector = xvector[0]
 
 
-nt = 500000
+nt = 100000
 wall_thickness = 100
 # psi0 = M0*exp(1j*k0*(xvector)*0*1 - xvector*xvector/100000)
 psi0 = M0*np.sin(xvector/L/2 * (naxis/2) / (naxis/2 - wall_thickness-1) * pi + pi/2)
@@ -52,9 +53,14 @@ mu_k = pi * (naxis-1)*klist/(L*naxis)
 expmu = exp(-1j*(mu_k**2)*(dt)/2/0.1)
 m2 = np.linspace(-1, 1, naxis) ** 2
 
-mode = "single"
+mode = "multiple"
+# mode = "single"
+save_path = first_unoccupied("../output/out%s.p")
+with open(save_path, 'wb+') as save_file:
+    print(f'save file: {save_path}')
 
 total_momentum_sums = {}
+momentum_save_frequency = 10
 
 lower_bound, upper_bound = 0.00020, 0.00050
 lower_bound_ratio, upper_bound_ratio = 0.4, 0.7
@@ -62,7 +68,8 @@ lower_bound, upper_bound = (upper_bound - lower_bound) * lower_bound_ratio + low
 # for d_i, drive_frequency in enumerate(np.linspace(lower_bound*dt, upper_bound*dt, 1000)):
 # for d_i, drive_frequency in enumerate(np.linspace(0.000711*dt, 0.001273*dt, 10)):
 # for d_i, drive_frequency in [(1, 0.0033693693693693694)]:
-for d_i, drive_frequency in enumerate(np.linspace(0.003372, 0.003378, 10)):
+# for d_i, drive_frequency in enumerate(np.linspace(0.003370, 0.003376, 100)):
+for d_i, drive_frequency in enumerate(np.linspace(0.003300, 0.003400, 100)):
     momentum_sum_list = []
     psit_list = []
     psit = psi0
@@ -81,14 +88,14 @@ for d_i, drive_frequency in enumerate(np.linspace(0.003372, 0.003378, 10)):
         psitft = fft(psit)
         psitft = expmu*psitft
         psit = ifft(psitft)
-        composite_potential = potential + 1*0.05*drive_potential
+        composite_potential = potential + 1*0.09*drive_potential
         composite_potential *= 0.02
         psit = exp(-1j*composite_potential*dt) * psit
 
         if i % 10000 == 0:
             print(i)
 
-        if i % 5 == 0:
+        if i % momentum_save_frequency == 0:
             psit_list.append(psit)
             drive_list.append(composite_potential)
             momentum_list.append(fftshift(psitft))
@@ -101,18 +108,19 @@ for d_i, drive_frequency in enumerate(np.linspace(0.003372, 0.003378, 10)):
 
     # fig = plt.figure(figsize=(9,8))
     if mode == 'single':
-        # ax = plt.subplot(1, 3, 1)
+        ax = plt.subplot(1, 2, 1)
         # gpeplot = plt.imshow((np.absolute(psit_list[:10000])),origin='lower',aspect='auto')
-        plt.imshow((np.absolute(psit_list[:100000])), origin='lower', aspect='auto')
+        plt.imshow((np.absolute(psit_list)), origin='lower', aspect='auto')
         # plt.xlabel("Position",fontsize=20)
         # plt.ylabel("Time",fontsize=20)
         # plt.colorbar()
         # plt.suptitle('Wavefunction amplitude $|\psi|$',fontsize=20)
 
-        # plt.subplot(1, 3, 2)
+        plt.subplot(1, 2, 2)
         # drive_list = np.minimum(0.0001, drive_list)
         # plt.imshow(drive_list[:100000],origin='lower',aspect='auto')
-        # plt.plot(np.convolve(np.absolute(momentum_sum_list), gaussian(5311, 560)))
+        # plt.plot(np.convolve(np.absolute(momentum_sum_list), gaussian((nt/momentum_save_frequency)//8, (nt/momentum_save_frequency)//32)))
+        plt.plot(np.absolute(momentum_sum_list))
         # plt.imshow(np.abs(momentum_list), origin='lower', aspect='auto')
         # plt.subplot(1,3,3)
         # plt.imshow(np.abs(np.fft.fftshift(np.fft.fft(np.array(psit_list)))),origin='lower',aspect='auto')
@@ -121,11 +129,11 @@ for d_i, drive_frequency in enumerate(np.linspace(0.003372, 0.003378, 10)):
     else:
         momentum_list = np.minimum(1, momentum_list)
         for m_stretch in range(1):
+            # total_momentum_sums[drive_frequency] = np.convolve(np.absolute(momentum_sum_list), gaussian((nt/momentum_save_frequency)//8, (nt/momentum_save_frequency)//32))
             total_momentum_sums[drive_frequency] = np.absolute(momentum_sum_list)
 
-
-        if d_i % 15 == 0:
-            with open(f"../output/out4.p", 'wb+') as pickle_file:
+        if d_i % 1 == 0:
+            with open(save_path, 'wb+') as pickle_file:
                 pickle.dump(total_momentum_sums, pickle_file)
 
         # plt.imshow(np.array(total_momentum_sums))

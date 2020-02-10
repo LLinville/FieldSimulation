@@ -1,5 +1,6 @@
 import numpy as np
 import cmath
+from os import path
 
 def add_point(data, cx, cy, width=100, turns=0, mag=1):
 
@@ -47,4 +48,8 @@ def total_mag(buffer):
     return np.sum(np.sqrt(points[:,:,0]*points[:,:,0] + points[:,:,1]*points[:,:,1]))
 
 
-def first_unoccupied
+def first_unoccupied(pattern):
+    for i in range(1, 10000):
+        if not path.exists(pattern % i):
+            return pattern % i
+    return None
