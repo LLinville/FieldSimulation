@@ -65,7 +65,7 @@ add_packet(field, 20, 20, width=10, momentum=10)
 
 
 # timestep
-dt = 0.5
+dt = 0.005
 
 total_iterations = 1000000
 substeps = 30

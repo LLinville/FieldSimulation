@@ -2,8 +2,7 @@ import numpy as np
 import cmath
 from os import path
 
-def add_point(data, cx, cy, width=100, turns=0, mag=1):
-
+def add_point_parabolic(data, cx, cy, width=100, turns=0, mag=1):
     for x in range(data.shape[0]):
         for y in range(data.shape[1]):
             dx, dy = x-cx, y-cy
@@ -13,8 +12,46 @@ def add_point(data, cx, cy, width=100, turns=0, mag=1):
                 mag = -4 * mag * (mag - 1)
                 phase = turns * cmath.phase(dx + dy*1j)
                 out = cmath.rect(mag, phase)
-                data[x, y, 0] = out.real
-                data[x, y, 1] = out.imag
+                if len(data.shape) == 2:
+                    data[x, y] += out
+                else:
+                    data[x, y, 0] += out.real
+                    data[x, y, 1] += out.imag
+
+def add_point_zero_origin_smooth_tail(data, cx, cy, width=100, turns=0, mag=1):
+    for x in range(data.shape[0]):
+        for y in range(data.shape[1]):
+            dx, dy = x-cx, y-cy
+            dist_squared = dx ** 2 + dy ** 2
+            if (0 < dist_squared < width**2*100):
+                dist_squared /= width**2
+                out = (dx + 1j*dy)**turns / cmath.exp(dist_squared) * mag
+                if len(data.shape) == 2:
+                    data[x, y] += out
+                else:
+                    data[x, y, 0] += out.real
+                    data[x, y, 1] += out.imag
+
+
+def add_point_vortex(data, cx, cy, width=100, turns=0, mag=1):
+    for x in range(data.shape[0]):
+        for y in range(data.shape[1]):
+            dx, dy = x-cx, y-cy
+            dist_squared = dx ** 2 + dy ** 2
+            if True or (0 < dist_squared < width**2*100):
+                dist_squared /= width**2
+                out = (dx + 1j*dy)**turns
+                try:
+                    out /= np.abs(out)
+                except Exception as ex:
+                    pass
+                out *= (1 - 1/(1+np.sqrt(dist_squared/width/10)))
+                if len(data.shape) == 2:
+                    data[x, y] += out
+                else:
+                    data[x, y, 0] += out.real
+                    data[x, y, 1] += out.imag
+
 
 # var cp = Math.cos(phi), sp = Math.sin(phi);
 #    var pixels = [],  h = 1/n1;
@@ -46,6 +83,17 @@ def add_packet(data, cx, cy, width=100, momentum=1, direction=0):
 def total_mag(buffer):
     points = np.reshape(np.frombuffer(buffer.read(), dtype="f4"), (-1, 1024, 4))
     return np.sum(np.sqrt(points[:,:,0]*points[:,:,0] + points[:,:,1]*points[:,:,1]))
+
+def grad(field):
+        return (np.roll(field, 1, axis=0) + np.roll(field, -1, axis=0) + np.roll(field, 1, axis=1) + np.roll(field, -1, axis=1)) / 4 - field
+
+def runge_kutta_force(field, stepper, dt=0.01):
+    stepper(field, dt)
+    k1 = stepper(field, dt)
+    k2 = grad(field + k1 / 2) * dt
+    k3 = grad(field + k2 / 2) * dt
+    k4 = grad(field + k3) * dt
+    return (k1 + 2 * k2 + 2 * k3 + k4) / 6
 
 
 def first_unoccupied(pattern):

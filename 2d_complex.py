@@ -1,7 +1,7 @@
 import numpy as np
 
 from numpy import pi
-import pylab as plt
+import matplotlib.pyplot as plt
 from colorsys import hls_to_rgb
 from scipy import signal
 from numba import jit
