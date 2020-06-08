@@ -1,8 +1,8 @@
 import numpy as np
 from numpy.fft import fft2, ifft2, fft, ifft, fftshift, ifftshift
 from util import add_packet
-# from util import add_point_zero_origin_smooth_tail as add_point
-from util import add_point_vortex as add_point
+from util import add_point_zero_origin_smooth_tail as add_point
+# from util import add_point_vortex as add_point
 from scipy.ndimage.filters import gaussian_filter
 import matplotlib
 # matplotlib.use("TkAgg")
@@ -18,7 +18,7 @@ import pyqtgraph as pg
 
 
 # width = 11
-width = 255
+width = 251
 
 
 fields = {}
@@ -34,11 +34,12 @@ position = np.zeros((width,width), dtype=complex)
 
 # add_point(position, 168, 168, width=10, turns=0)
 # add_point(position, 127, 127, width=10, turns=1, mag=-1)
+# add_point(position, 227, 227, width=20, turns=1, mag=-1)
 # add_point(position, 50, 50, width=10, turns=1, mag=1)
-# add_point(position, 140, 140, width=10, turns=2, mag=1)
+# add_point(position, 180, 180, width=10, turns=2, mag=1)
 # add_packet(position, 150,150, width=20, momentum=10, direction=0)
 # add_packet(position, 350,150, width=30, momentum=1, direction=pi/-2)
-add_packet(position, 127,127, width=10, momentum=0, direction=0)
+add_packet(position, 127,127, width=30, momentum=0, direction=0)
 # add_packet(position, 147,147, width=10, momentum=0, direction=0)
 # add_packet(position, 350, 350, width=30, momentum=3, direction=2*pi/4)
 # add_packet(position, 5,5,width=3)
@@ -46,7 +47,7 @@ add_packet(position, 127,127, width=10, momentum=0, direction=0)
 # add_packet(position, 130, 100, width=10, momentum=-3, direction=3*pi/4)
 # position /= np.sum(np.abs(position))
 position /= np.max(np.abs(position))
-# position *= 100
+position *= 1.0
 # position = np.abs(position)
 
 nonlinear_vel = np.zeros_like(position)
@@ -68,6 +69,8 @@ momentum_map = momentum_map * momentum_map
 momentum_map = np.sqrt(momentum_map + momentum_map.transpose())
 momentum_map = momentum_map ** 1
 
+
+
 # larger mass means wave of given size travels slower
 # lower mass means larger wave scale on average
 mass = 1
@@ -75,7 +78,7 @@ momentum_op = np.exp(-1j * momentum_map**1 * dt / 2 / mass)
 # momentum_op = np.exp(-20*momentum_map**2*dt/mass)
 
 
-ground_potential = np.abs(np.array([[x**2 + y**2 for x in np.array(np.linspace(-1, 1, width))] for y in np.array(np.linspace(-1, 1, width))], dtype=complex)) * 0.050
+ground_potential = np.abs(np.array([[x**2 + y**2 for x in np.array(np.linspace(-1, 1, width))] for y in np.array(np.linspace(-1, 1, width))], dtype=complex)) * 0.950
 # ground_potential = np.zeros_like(position)
 # potential = np.ones_like(position)*1000000000
 # potential[10:width-10,10:width-10] = 0
@@ -126,6 +129,9 @@ view2.addItem(img2)
 
 # position = psi0
 all_outputs = []
+positive_momentum = fftshift(fft2(position))
+negative_momentum = np.copy(positive_momentum)
+
 for iter in range(10000):
     print(iter)
     to_compare = np.copy(position)
@@ -141,8 +147,16 @@ for iter in range(10000):
 
         # potential_op = np.exp(-1j * potential * 0.00001 * dt / 2)
     for substep in range(1):
-        momentum = fftshift(fft2(position))
-        momentum *= momentum_op ** 1
+        momentum_transfer_strength = 0.91*0
+        positive_momentum_new = fftshift(fft(position))
+        negative_momentum_new = np.copy(positive_momentum)
+        positive_momentum += (positive_momentum_new - positive_momentum) * momentum_transfer_strength
+        negative_momentum += (negative_momentum_new - negative_momentum) * momentum_transfer_strength
+        positive_momentum *= momentum_op
+        negative_momentum /= momentum_op
+        momentum = positive_momentum + 0*negative_momentum
+        # momentum = fftshift(fft2(position))
+        # momentum *= momentum_op ** 1
         position = ifft2(ifftshift(momentum))
         # potential = ground_potential# + 0.00001*1.0 / gaussian_filter(np.abs(np.maximum(position, 0.01)*1), sigma=15)**2
         pos_mag = np.abs(position)
@@ -156,22 +170,24 @@ for iter in range(10000):
         # position *= ground_potential
         # position /= np.sum(np.abs(position))
 
-        nonlinear_strength = -0.2
+        nonlinear_strength = -0.091
         # nonlinear = position * (1-pos_mag**2)
         # nonlinear = np.pad(nonlinear[pad_width:-1 * pad_width, pad_width:-1 * pad_width], pad_width)
-        # nonlinear = (np.sin(pos_mag*pi)) * position * nonlinear_strength
-        nonlinear = pos_mag**2*position*nonlinear_strength
+        nonlinear = (np.sin(pos_mag*2*pi)) * position * nonlinear_strength
+        # nonlinear = pos_mag**2*position*nonlinear_strength
 
-        position *= np.exp(-1j*nonlinear)
+        # position *= np.exp(-1j*nonlinear)
+
         # position *= np.exp(1*(1-pos_mag**2)*1.0)
-        # position += nonlinear
+        position += nonlinear
         # position /= np.exp(-1j*pos_mag**2 * 0.08)
         # position -= 0.1*position * (1-pos_mag)
         # position *= np.exp(-1j * potential * dt / 1000)
-    #
-    # padding = np.pad(position[pad_width:-1*pad_width, pad_width:-1*pad_width], pad_width, mode='edge')
-    # padding[pad_width:-1*pad_width, pad_width:-1*pad_width] = 0
-    # position = np.pad(position[pad_width:-1*pad_width, pad_width:-1*pad_width], pad_width) + padding*0
+        # position *= potential_op
+
+    padding = np.pad(position[pad_width:-1*pad_width, pad_width:-1*pad_width], pad_width, mode='edge')
+    padding[pad_width:-1*pad_width, pad_width:-1*pad_width] = 0
+    position = np.pad(position[pad_width:-1*pad_width, pad_width:-1*pad_width], pad_width) + padding*0
 
 
     # all_outputs.append(colorize(position))
@@ -192,11 +208,15 @@ for iter in range(10000):
         # img.setImage(np.abs(momentum))
         # img.setImage(np.maximum(0,np.abs(position)))
 
-        # img2.setImage(colorize(momentum))
+        img2.setImage(colorize(positive_momentum_new - positive_momentum))
+        # img2.setImage(pos_mag)
+
+        max_pos = np.max(pos_mag)
+
         # img2.setImage(colorize(momentum[2*width//5:3*width//5,2*width//5:3*width//5]))
-        img.setImage(colorize(position.transpose()))
-        img2.setImage(colorize(nonlinear))
-        print(f'max position: {np.max(pos_mag)}')
+        img.setImage(colorize(position.transpose()/np.ceil(max_pos+0.1)))
+        # img2.setImage(colorize(nonlinear))
+        print(f'max position: {max_pos}')
         print(f'max nonlinear: {np.max(np.abs(nonlinear))}')
         # img.setImage(colorize(position - to_compare))
         # img.setImage(colorize(position.imag))

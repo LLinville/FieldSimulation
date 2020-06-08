@@ -14,3 +14,27 @@ force(x,y
 force(x,y) = sum(
 
 
+
+================
+
+
+
+
+each point is in an oscillation described by the sum of two rotating vectors
+
+The figure traced by this sum is a Lissajous curve. We are interested in the lowest order elliptical orbits.
+
+When the angular frequency of these vectors are equal and they rotate in opposite directions, they trace a line through the origin
+
+
+The two vectors are attracted to each other
+    - Produces similar effect to being attracted to a fixed angle where that angle is their mean?
+
+
+
+When adding a nonlinearity, we can compare the pre-nonlinearity to after adding it
+
+We could try finding what rotations of the two base vectors needs to be, keeping the magnitude and adding rotation
+
+
+

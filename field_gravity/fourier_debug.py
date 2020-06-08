@@ -27,33 +27,42 @@ def plot(field, zoom_width=None):
     plt.imshow(colorize(np.repeat([field], zoom_width, axis=0)))
 
 
+
+
 vel = np.zeros_like(x)
-position = np.exp(-1*x**2) + 1*np.exp(-1*np.roll(x, 15)**2)
+position = np.exp(-1*x**2) + 0*np.exp(-1*np.roll(x, 10)**2)
+position *= 0.2
 # position = np.sin(x)
 # position = ifft(ifftshift(position))
 initial = np.copy(position)
 dt = 0.1
 
 momentum_initial = fftshift(fft(position))
+momentum_positive = np.copy(momentum_initial)
+momentum_negative = np.copy(momentum_initial)
 
 for i in range(10000):
-    vel -= laplacian(position)*dt
-    nonlinear = np.sin(position)*dt*10
+    vel -= laplacian(position)*dt*1
+    nonlinear = np.sin(position*2*pi)*dt*0.1
     vel -= nonlinear
     position += vel * dt
+    print('vel, position, nonlinear')
     print(np.max(np.abs(vel)))
     print(np.max(np.abs(position)))
     print(np.max(np.abs(nonlinear)))
 
     view_width = 50
-    # momentum = fftshift(fft(position))
+
+    # wave_relation = np.abs(np.linspace(-10, 10, width) ** 1)
+    # momentum = momentum_positive * np.exp(1j*i*dt * wave_relation) * 1 + momentum_negative * np.exp(-1j*i*dt * wave_relation)
+    momentum = fftshift(fft(position))
     # momentum=np.imag(momentum)
     # momentum = np.angle(momentum)
     # momentum = momentum_initial * multiplier_at_time(i*dt)
     # position = ifft(ifftshift(momentum))
     # plot(momentum - fftshift(fft(np.abs(position))))
-    # plt.imshow(colorize(np.repeat([momentum[width // 2 - view_width // 2:width // 2 + view_width // 2]/10], view_width, axis=0)))
-    plt.imshow(colorize(np.repeat([position], width, axis=0)))
+    plt.imshow(colorize(np.repeat([momentum[width // 2 - view_width // 2:width // 2 + view_width // 2]/10], view_width, axis=0)))
+    # plt.imshow(colorize(np.repeat([position], width, axis=0)))
     plt.pause(0.001)
 
 plt.show()
