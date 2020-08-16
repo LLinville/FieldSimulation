@@ -4,6 +4,10 @@
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/field_gravity" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/moderngl_based" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/particle_field" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/particle_field/nBody-master" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/particle_field/nBody-master/nbody" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/particle_field/nBody-master/sample" isTestSource="false" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.7 (graphicsMisc)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />

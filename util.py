@@ -80,6 +80,28 @@ def add_packet(data, cx, cy, width=100, momentum=1, direction=0):
                 data[x, y, 0] += out.real
                 data[x, y, 1] += out.imag
 
+def add_singordon_packet(data, cx, cy, width=100, momentum=0, direction=0, mag=1):
+    cosdir, sindir = np.cos(direction), np.sin(direction)
+    for x in range(data.shape[0]):
+        for y in range(data.shape[1]):
+            # if x == 0 and y == 0:
+            #     continue
+            dx, dy = x - cx, y - cy
+            dx, dy = dx / width, dy / width
+            dx, dy = dx * cosdir - dy * sindir, dx * sindir + dy * cosdir
+
+            dist = np.sqrt(dx ** 2 + dy ** 2)
+            # out = cmath.exp(-1 * dist ** 2 + 1j * dx * momentum)
+            mass=1
+            delta = -0.0001
+            gamma = np.sqrt(1/(1-momentum**2))
+            out = 4*np.arctan(np.exp(mass*gamma*(-1*dist) + delta)) * mag
+            if len(data.shape) == 2:
+                data[x, y] += out
+            else:
+                data[x, y, 0] += out.real
+                data[x, y, 1] += out.imag
+
 def total_mag(buffer):
     points = np.reshape(np.frombuffer(buffer.read(), dtype="f4"), (-1, 1024, 4))
     return np.sum(np.sqrt(points[:,:,0]*points[:,:,0] + points[:,:,1]*points[:,:,1]))

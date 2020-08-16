@@ -1,0 +1,21 @@
+
+
+int getGlobalIdx_2D_2D(){
+    int blockId = blockIdx.x + blockIdx.y * gridDim.x;
+    int threadId = blockId * (blockDim.x * blockDim.y)
+        + (threadIdx.y * blockDim.x) + threadIdx.x;
+    return threadId;
+}
+
+float getAt(float *array, int x, int y){
+    return 1;
+}
+
+__global__ void unoptim(float *pos, float *vel, float *out)
+{
+int idx = blockIdx.x * blockDim.x + threadIdx.x;
+float x = threadIdx.x;
+float y = blockIdx.x;
+//float force = posAt(x,y);
+out[idx] = x;
+}
