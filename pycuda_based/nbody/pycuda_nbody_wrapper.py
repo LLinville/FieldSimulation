@@ -16,12 +16,17 @@ if __name__ == "__main__":
     BLOCK_SIZE = 256
     nBlocks = (n + BLOCK_SIZE - 1) // BLOCK_SIZE
 
-    pos = np.random.random((n*2)) * 100
-    pos = np.array(pos, dtype=np.float32)
+    pos = np.array([
+        [0.5,0.5],
+        [1.0,1.0]
+    ], dtype=np.float32)
+
+    # pos = np.random.random((n*2)) * 100
+    # pos = np.array(pos, dtype=np.float32)
     # pos = np.zeros((n), dtype=np.float32)
     vel = np.zeros_like(pos, dtype=np.float32)
-    vel = np.random.random((n*2)) * 100
-    vel = np.array(vel, dtype=np.float32)
+    # vel = np.random.random((n*2)) * 100
+    # vel = np.array(vel, dtype=np.float32)
     debug = np.zeros_like(pos, dtype=np.float32)
     dt = np.float32(10)
 
@@ -53,7 +58,7 @@ if __name__ == "__main__":
     view.setXRange(0, 100, padding=0)
     view.setYRange(0, 100, padding=0)
 
-    while True:
+    for iter in range(100):
         for i in range(1):
             # print(i)
             update_vel(pos_gpu, vel_gpu, debug_gpu, dt_gpu, n_gpu, block=(nBlocks,BLOCK_SIZE,1), grid=(1,1,1))
