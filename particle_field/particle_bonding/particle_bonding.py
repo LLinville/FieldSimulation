@@ -4,36 +4,17 @@ from matplotlib import pyplot as plt
 from itertools import count
 from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph as pg
+from particle_bonding import ParticleGrapher
 
-def graphics_setup():
-    app = QtGui.QApplication([])
+pos = np.array([[0,0],[0,1],[1,0],[1,1]], dtype=np.float64) * 1
+pos = pos[0:3]
+# pos = np.random.random((n_part,2))*6-3
+grid_min, grid_max = -10,10
+spacing = 1.5
+part_per_row = (grid_max - grid_min) // spacing
+pos = np.array([[x,y] for x in np.linspace(grid_min, grid_max, part_per_row) for y in np.linspace(grid_min, grid_max, part_per_row)])
 
-    ## Create window with GraphicsView widget
-    win = pg.GraphicsLayoutWidget()
-    win.show()  ## show widget alone in its own window
-    win.setWindowTitle('pyqtgraph example: ImageItem')
-    view = win.addViewBox()
-    view2 = win.addViewBox()
-
-    ## lock the aspect ratio so pixels are always square
-    view.setAspectLocked(True)
-    view2.setAspectLocked(True)
-
-    ## Create image item
-    img = pg.ImageItem(border='w')
-    view.addItem(img)
-    img2 = pg.ImageItem(border='w')
-    view2.addItem(img2)
-
-    return app, win, [view, view2], [img, img2]
-
-
-app, win, [view, view2], [img, img2] = graphics_setup()
-
-n_part = 1000
-
-pos = np.array([[0,0],[0,1],[1,0],[1,1]], dtype=np.float64)
-pos = np.random.random((n_part,2))*2-1
+n_part = len(pos)
 
 vel = np.zeros_like(pos)
 
@@ -41,13 +22,35 @@ eneg = np.ones(n_part)
 # charge = np.ones(n_part)
 # charge = np.array([1,1,-1,-1], dtype=np.float64)
 charge = np.ones(n_part, dtype=np.float64)
-charge = np.random.random(n_part)
+charge = np.random.random(n_part) * 2 - 1
 
 elec_shared = np.diag(np.ones(n_part))
 
 spread_speed = 0.1
 
 base_spread = (np.ones_like(elec_shared) * spread_speed) / n_part + np.diag(np.ones(n_part) * (1 - spread_speed))
+
+
+app = QtGui.QApplication([])
+
+## Create window with GraphicsView widget
+win = pg.GraphicsLayoutWidget()
+win.show()  ## show widget alone in its own window
+win.setWindowTitle('pyqtgraph example: ImageItem')
+view = win.addViewBox()
+# view2 = win.addViewBox()
+
+## lock the aspect ratio so pixels are always square
+view.setAspectLocked(True)
+# view2.setAspectLocked(True)
+
+cmap = pg.ColorMap([-1,1], np.array([[0,0,0,255],[255,255,255,255]]))
+
+g1 = pg.GraphItem()
+
+view.addItem(g1)
+# p.addItem(g2)
+
 
 
 # dist = squareform(pdist(pos))
@@ -79,39 +82,88 @@ base_spread = (np.ones_like(elec_shared) * spread_speed) / n_part + np.diag(np.o
 # calculate equilibrium charge at current distance with charge difference
 # charge distribution approaches that value
 
+# track how much each electron is shared by each pair of atoms
+# increased distance means amount shared with self increases
+# e(n, a, b) = portion of electron n shared between a and b
+# 1 = e(n, a, a) + sum_b(e(n, a, b))
+# A close particle has the same pull on an electron as a farther but more eneg particle
+# Normalize pull so pull(e(n), a) = 1
+# Inherent pull to e(a,a)
+# Pull to e(a,b) ~ eneg_a / eneg_b
 
-dt = 0.001
 
 
-# plt.scatter(pos[:,0],pos[:,1], c=charge)
+view_window = (-15,15)
+eq_dist = 1
 
+dt = 0.05
+max_vel = 1.1
+
+def graph(g_item, position, vel, charge, view_dist):
+    brush = cmap.map(np.sum(vel*vel, axis=1), 'qcolor') * 10
+    brush = cmap.map(charge, 'qcolor')
+    g1.setData(pos=position, pen=0.5, brush=brush, symbol='o', size=eq_dist, pxMode=False)
+    view.setXRange(-1*view_dist[0], view_dist[0])
+    view.setYRange(-1*view_dist[1], view_dist[1])
+
+
+def jones(dist, eq_dist):
+    dist = dist / eq_dist
+    dist2 = dist * dist
+    dist4 = dist2 * dist2
+    dist8 = dist4 * dist4
+    return 1 / (dist8) - 1 / (dist4 * dist2)
+
+
+grav_pull = np.array([0,-1]) * 0.00001
 
 for iter in count():
 
-    x_dist = pos[:, 0] - pos[:, 0][None, :].T
-    y_dist = pos[:, 1] - pos[:, 1][None, :].T
-    dist2 = x_dist * x_dist + y_dist * y_dist
-    dist = np.sqrt(dist2)
+    dist = pos - pos[:,None,:]
+    dist2 = dist * dist
+    dist_mag = np.sum(dist2, axis=2)
+    dist2 = dist_mag*dist_mag
 
-    particle_charge_attraction = 1 * charge[None, :] * charge[None, :].T / (0.001 + dist2)
+    particle_charge_attraction = 1.5 * charge[None, :] * charge[None, :].T / (0.05 + dist2)
+    attraction = 1 * jones(dist_mag + 0.000, eq_dist) + particle_charge_attraction
 
-    x_force = particle_charge_attraction * x_dist / dist
-    x_force = np.sum(np.nan_to_num(x_force), axis=1)
+    force = attraction[:,:,None] * dist / dist_mag[:,:,None]
+    force = np.sum(np.nan_to_num(force), axis=0)
 
-    y_force = particle_charge_attraction * y_dist / dist
-    y_force = np.sum(np.nan_to_num(y_force), axis=1)
+    neg_embed = view_window[0] - np.minimum(view_window[0], pos)
+    pos_embed = view_window[1] - np.maximum(view_window[1], pos)
+    force += neg_embed * neg_embed
+    force -= pos_embed * pos_embed
 
-    vel += np.stack([x_force, y_force], axis=1) * dt
+    # x_force = attraction * x_dist / dist
+    # x_force = np.sum(np.nan_to_num(x_force), axis=1)
+    # x_left_embed = view_window[0] -  np.minimum(view_window[0], pos[:, 0])
+    # # x_right_embed = np.maximum(view_window[0], pos[:, 0] + )
+    # x_force += x_left_embed * x_left_embed
+    #
+    #
+    # y_force = attraction * y_dist / dist
+    # y_force = np.sum(np.nan_to_num(y_force), axis=1)
+
+
+
+    vel += force * dt + grav_pull
+    vel *= 0.9999
+
+    vel /= np.maximum(max_vel, np.abs(vel)) / max_vel
     pos += vel * dt
 
-    if iter%1 == 0:
-        plt.clf()
-        plt.scatter(pos[:,0],pos[:,1], c=charge)
-        axes = plt.axes()
-        axes.set_xlim([-2, 2])
-        axes.set_ylim([-2, 2])
-        plt.pause(0.001)
+    if iter%100 == 0:
+        graph(g1, pos, vel, charge, view_dist=view_window)
+        app.processEvents()
+        # plt.clf()
+        # plt.scatter(pos[:,0],pos[:,1], c=charge)
+        # axes = plt.axes()
+        # axes.set_xlim([-2, 2])
+        # axes.set_ylim([-2, 2])
+        # plt.pause(0.001)
         print(iter)
+        # print(f'Ekin = {np.sum(vel*vel)}')
         # print(np.abs(vel))
 
 
