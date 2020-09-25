@@ -36,5 +36,41 @@ When adding a nonlinearity, we can compare the pre-nonlinearity to after adding 
 
 We could try finding what rotations of the two base vectors needs to be, keeping the magnitude and adding rotation
 
+============================
+n-body
 
+
+# spread charge to others by dist?
+
+# nonlinear scaling of electronegativity with distance
+# particle getting close to another more electronegative one causes an even more imbalanced charge
+# polar covalent bond will become more polar with less distance
+# potential for interaction at the scale of transferring charge from thermal motion alone
+# polar covalent bond pushed closer together will cause loss of negative charge on less electronegative particle
+# balancing effect pushing away? What is the attraction that makes it a balanced force?
+
+
+# ---- distance not involved
+# spread by bond strength minus difference in electronegativity
+# should be symmetric to preserve charge
+
+
+# ---- distance involved
+
+# function of equilibrium of a bond's charge distribution given a distance and two electronegativities
+# little to no difference in eneg means balanced covalent bond
+# moderate difference in eneg means polar covalent bond
+# large difference in eneg means ionic bond
+
+# calculate equilibrium charge at current distance with charge difference
+# charge distribution approaches that value
+
+# track how much each electron is shared by each pair of atoms
+# increased distance means amount shared with self increases
+# e(n, a, b) = portion of electron n shared between a and b
+# 1 = e(n, a, a) + sum_b(e(n, a, b))
+# A close particle has the same pull on an electron as a farther but more eneg particle
+# Normalize pull so pull(e(n), a) = 1
+# Inherent pull to e(a,a)
+# Pull to e(a,b) ~ eneg_a / eneg_b
 
