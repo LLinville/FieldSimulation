@@ -13,9 +13,16 @@ def jones(dist, eq_dist):
     dist8 = dist4 * dist4
     return 1 / (dist8) - 1 / (dist4 * dist2)
 
+def particle_grid(width, spacing):
+    grid_min, grid_max = -1*width/2, width/2
+    part_per_row = (grid_max - grid_min) // spacing
+    pos = np.array([[x, y] for x in np.linspace(grid_min, grid_max, part_per_row) for y in
+                    np.linspace(grid_min, grid_max, part_per_row)])
+    return pos
+
 
 class ParticleGraph(pg.GraphItem):
-    def __init__(self, pos, vel, charge):
+    def __init__(self, pos, vel, charge, eneg, idempot, dt):
         pg.setConfigOptions(antialias=True)
 
         self.app = QtGui.QApplication([])
@@ -29,16 +36,25 @@ class ParticleGraph(pg.GraphItem):
         self.dragged_point_index = None
         self.dragOffset = None
 
-        self.dt = 0.01
+        self.dt = dt
         self.position = pos
         self.vel = vel
         self.charge = charge
+        self.eneg = eneg
+        self.idempot = idempot
         self.n_part = len(pos)
         self.eq_dist = 1
-        self.grav_pull = np.array([0,-1]) * 0.0000
-        self.max_vel = 10
-        self.cmap = pg.ColorMap([-1,0,1], np.array([[255,0,0,255],[255,255,255,255],[0,0,255,255]]))
+        self.grav_pull = np.array([0,-1]) * 0.00000
+        self.max_vel = 1
+        self.cmap = pg.ColorMap([-0.5,0,0.5], np.array([[255,0,0,255],[255,255,255,255],[0,0,255,255]]))
         pg.GraphItem.__init__(self)
+
+
+    def bond_order(self, dist2):
+        a = -0.2
+        return np.exp(a * dist2)
+
+    # def bond_energy(self, dist2):
 
 
     def step(self):
@@ -46,10 +62,20 @@ class ParticleGraph(pg.GraphItem):
         dist2 = dist * dist
         dist_mag = np.sum(dist2, axis=2)
         dist2 = dist_mag * dist_mag
+        dist4 = dist2 * dist2
 
-        particle_charge_attraction = 0.5 * self.charge[None, :] * self.charge[None, :].T / (0.05 + dist2)
+        bond_order = self.bond_order(dist2)
 
-        attraction = 1 * jones(dist_mag + 0.000, self.eq_dist) * charge# + particle_charge_attraction
+        atomic_coulomb_grad = -1 * dist_mag / (np.power(dist2 + 1, 1.5))
+
+        charge_grad = self.eneg + self.idempot * self.charge + np.sum(atomic_coulomb_grad, axis=1)
+        charge_transfer = charge_grad - charge_grad[None, :].T
+
+        self.charge += np.sum(np.nan_to_num(charge_transfer * bond_order), axis=1) * 0.001
+
+        particle_charge_attraction = 2.5 * self.charge[None, :] * self.charge[None, :].T / (0.05 + dist2)
+
+        attraction = 0.011 * jones(dist_mag + 0.000, self.eq_dist) + particle_charge_attraction
 
         force = attraction[:, :, None] * dist / dist_mag[:, :, None]
         force = np.sum(np.nan_to_num(force), axis=0)
@@ -101,20 +127,25 @@ class ParticleGraph(pg.GraphItem):
 
 
 if __name__ == '__main__':
-    import sys
 
-    grid_min, grid_max = -10, 10
-    spacing = 1.5
-    part_per_row = (grid_max - grid_min) // spacing
-    pos = np.array([[x, y] for x in np.linspace(grid_min, grid_max, part_per_row) for y in
-                    np.linspace(grid_min, grid_max, part_per_row)])
+    dt = 0.1
+
+    pos = np.array([[-1, -1], [1, 1]]).astype(np.float64)
+    pos = particle_grid(5, 1)
     vel = np.zeros_like(pos)
     n_part = len(pos)
-    charge = np.random.random(n_part)# * 2 - 1
+    charge = np.random.random(n_part) * 2 - 1
+    charge = np.linspace(-2,2,n_part)
+    charge = np.zeros_like(charge)
 
-    grapher = ParticleGraph(pos, vel, charge)
+    eneg = np.array([1, 1]).astype(np.float64)
+    eneg = np.ones_like(charge)*1
+    idempot = np.array([10, 10]).astype(np.float64)
+    idempot = np.ones_like(charge)
 
-    iter_per_redraw = 100
+    grapher = ParticleGraph(pos=pos, vel=vel, charge=charge, eneg=eneg, idempot=idempot, dt=dt)
+
+    iter_per_redraw = 10
     start = time.time()
     for iter in count():
         grapher.step()
@@ -122,7 +153,10 @@ if __name__ == '__main__':
             grapher.redraw()
             grapher.app.processEvents()
             end = time.time()
-            print(f'{iter_per_redraw / (end - start)} iter/s')
-            start = end
+            try:
+                print(f'{iter_per_redraw / (end - start)} iter/s')
+                start = end
+            except Exception as e:
+                print(e)
     # if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
     #     QtGui.QApplication.instance().exec_()
