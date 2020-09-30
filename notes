@@ -75,3 +75,15 @@ n-body
 # Pull to e(a,b) ~ eneg_a / eneg_b
 
 Electron repels other electrons at different dropoff than protons repel protons
+
+------
+Multiple charges
+* Each has a net charge of two different types. (A, B, ...)
+* Charge oscillation
+    - Induced by presence of the other field(s)?
+    - A catalyzes -B -> B
+    - B catalyzes A -> -A
+    - -A catalyzes B -> -B
+    - -B catalyzes -A -> A
+    - A >B> -A
+    -
