@@ -3,6 +3,8 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
 from itertools import count
 from numba import jit
+from util import colorize
+from matplotlib import pyplot as plt
 import time
 
 @jit(nopython=True)
@@ -13,6 +15,7 @@ def jones(dist, eq_dist):
     dist8 = dist4 * dist4
     return 1 / (dist8) - 1 / (dist4 * dist2)
 
+
 def particle_grid(width, spacing):
     grid_min, grid_max = -1*width/2, width/2
     part_per_row = (grid_max - grid_min) // spacing
@@ -21,8 +24,21 @@ def particle_grid(width, spacing):
     return pos
 
 
+def charge_oscillation(charges, dist2):
+    # A catalyzes -B -> B
+    # B catalyzes A -> -A
+    # -A catalyzes B -> -B
+    # -B catalyzes -A -> A
+
+    # Unit change from presence of each charge type
+    # Diagonal zeros
+    induction_strengths = np.array([[0.0, -1], [-1, 0.0]])
+
+    dcharge_dt = np.sum(charges * induction_strengths, axis=0)
+    return dcharge_dt
+
 class ParticleGraph(pg.GraphItem):
-    def __init__(self, pos, vel, charge, eneg, idempot, dt):
+    def __init__(self, pos, vel, charges, eneg, idempot, dt):
         pg.setConfigOptions(antialias=True)
 
         self.app = QtGui.QApplication([])
@@ -39,7 +55,7 @@ class ParticleGraph(pg.GraphItem):
         self.dt = dt
         self.position = pos
         self.vel = vel
-        self.charge = charge
+        self.charges = charges
         self.eneg = eneg
         self.idempot = idempot
         self.n_part = len(pos)
@@ -54,28 +70,28 @@ class ParticleGraph(pg.GraphItem):
         a = -0.2
         return np.exp(a * dist2)
 
-    # def bond_energy(self, dist2):
-
-
     def step(self):
         dist = self.position - self.position[:, None, :]
         dist2 = dist * dist
         dist_mag = np.sum(dist2, axis=2)
-        dist2 = dist_mag * dist_mag
-        dist4 = dist2 * dist2
+        # dist2 = dist_mag * dist_mag
+        # dist4 = dist2 * dist2
 
-        bond_order = self.bond_order(dist2)
+        # bond_order = self.bond_order(dist2)
+        #
+        # atomic_coulomb_grad = -1 * dist_mag / (np.power(dist2 + 1, 1.5))
+        #
+        # charge_grad = self.eneg + self.idempot * self.charges + 1*np.sum(bond_order * atomic_coulomb_grad, axis=1)
+        # charge_transfer = charge_grad - charge_grad[None, :].T
 
-        atomic_coulomb_grad = -1 * dist_mag / (np.power(dist2 + 1, 1.5))
 
-        charge_grad = self.eneg + self.idempot * self.charge + 1*np.sum(bond_order * atomic_coulomb_grad, axis=1)
-        charge_transfer = charge_grad - charge_grad[None, :].T
 
-        self.charge += np.sum(np.nan_to_num(charge_transfer * bond_order * bond_order * bond_order), axis=1) * 0.01
+        # self.charges += np.sum(np.nan_to_num(charge_transfer * bond_order * bond_order * bond_order), axis=1) * 0.01
+        self.charges += charge_oscillation(self.charges, dist2) * 0.01
 
-        particle_charge_attraction = 4.5 * self.charge[None, :] * self.charge[None, :].T / (0.05 + dist2)
+        # particle_charge_attraction = 1.0 * self.charges[None, :] * self.charges[None, :].T / (0.05 + dist2)
 
-        attraction = 0.011 * jones(dist_mag * 1.00, self.eq_dist) + particle_charge_attraction
+        attraction = 0.911 * jones(dist_mag * 1.00, self.eq_dist)# + particle_charge_attraction
 
         force = attraction[:, :, None] * dist / dist_mag[:, :, None]
         force = np.sum(np.nan_to_num(force), axis=0)
@@ -86,15 +102,15 @@ class ParticleGraph(pg.GraphItem):
         force -= pos_embed * pos_embed
 
         self.vel += force * self.dt + self.grav_pull
-        self.vel *= 0.99995
+        # self.vel *= 0.99995
 
         self.vel /= np.maximum(self.max_vel, np.abs(self.vel)) / self.max_vel
         self.position += self.vel * self.dt
 
     def redraw(self):
         # brush = self.cmap.map(np.sum(self.vel * self.vel, axis=1), 'qcolor') * 10
-        brush = self.cmap.map(self.charge, 'qcolor')
-        self.g.setData(pos=self.position, pen=0.5, brush=brush, symbol='o', size=self.eq_dist, pxMode=False)
+        # brush = self.cmap.map(self.charges, 'qcolor')
+        self.g.setData(pos=self.position, pen=0.5, symbol='o', size=self.eq_dist, pxMode=False, c=colorize(self.charges[None,:,0] + 1j * self.charges[None,:,1]))
         self.v.setXRange(-1 * self.view_window[0], self.view_window[0])
         self.v.setYRange(-1 * self.view_window[1], self.view_window[1])
 
@@ -128,15 +144,17 @@ class ParticleGraph(pg.GraphItem):
 
 if __name__ == '__main__':
 
-    dt = 0.1
+    dt = 0.125
 
     pos = np.array([[-1, -1], [1, 1]]).astype(np.float64)
     pos = particle_grid(12, 1)
+    pos = np.array([[0,0]]).astype(np.float64)
     vel = np.zeros_like(pos)
     n_part = len(pos)
     charge = np.random.random(n_part) * 2 - 1
-    charge = np.linspace(-2,2,n_part)
-    charge = np.zeros_like(charge)
+    charges = np.linspace(-2,2,n_part)
+    charges = np.zeros_like(charge)
+    charges = np.array([[2, -1]]).astype(np.float64)
 
     eneg = np.array([1, 1]).astype(np.float64)
     eneg = np.ones_like(charge)*1
@@ -144,13 +162,16 @@ if __name__ == '__main__':
     idempot = np.array([1, 1]).astype(np.float64)
     idempot = np.ones_like(charge)
 
-    grapher = ParticleGraph(pos=pos, vel=vel, charge=charge, eneg=eneg, idempot=idempot, dt=dt)
+    grapher = ParticleGraph(pos=pos, vel=vel, charges=charges, eneg=eneg, idempot=idempot, dt=dt)
 
-    iter_per_redraw = 10
+    history = []
+    iter_per_redraw = 1000
     start = time.time()
     for iter in count():
         grapher.step()
+        history.append(grapher.charges.copy())
         if iter % iter_per_redraw == 0:
+            print(charges)
             grapher.redraw()
             grapher.app.processEvents()
             end = time.time()

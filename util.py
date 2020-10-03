@@ -2,7 +2,8 @@ import numpy as np
 import cmath
 from os import path
 from numba import cuda, float32
-
+from numpy import pi
+from colorsys import hls_to_rgb
 
 
 def add_point_parabolic(data, cx, cy, width=100, turns=0, mag=1):
@@ -126,6 +127,19 @@ def first_unoccupied(pattern):
         if not path.exists(pattern % i):
             return pattern % i
     return None
+
+def colorize(z):
+    r = np.abs(z)
+    arg = np.angle(z)
+
+    h = (arg + pi)  / (2 * pi) + 0.5
+    l = 1.0 - 1.0/(1.0 + r**0.3)
+    s = 0.8
+
+    c = np.vectorize(hls_to_rgb) (h,l,s) # --> tuple
+    c = np.array(c)  # -->  array of (3,n,m) shape, but need (n,m,3)
+    c = c.swapaxes(0,2)
+    return c
 
 # Controls threads per block and shared memory usage.
 # The computation will be done on blocks of TPBxTPB elements.
