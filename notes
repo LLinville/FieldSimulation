@@ -95,3 +95,17 @@ Multiple charges
 Path of lone particle through the space of possible charge combinations can act as a smoothly differentiable source of behavior
 * Polar curve with changing magnitude
 * Path on unit hypersphere as options for path shape
+
+---
+Particles have charges, as well as rules for how they interchange charge with neighboring particles
+
+* Rules could be a neural network to take charge or charge gradient
+* dense(ncharges * 2, ncharge)
+    - distance-diminished charges from one neighbor, combined with the particle's own charges, gives its affinity for each charge type
+    - charge transfers to particle with higher affinity at a rate proportional difference in affinity
+        - Also diminishes with distance
+* Add a cost to growing or fighting for affinity control
+
+
+----
+Charges are instead strategic states of the particle
