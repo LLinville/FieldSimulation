@@ -9,8 +9,6 @@ import pyqtgraph as pg
 
 from pycuda.elementwise import ElementwiseKernel
 
-
-
 if __name__ == "__main__":
     n = np.int(2)
     BLOCK_SIZE = 256

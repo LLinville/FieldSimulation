@@ -6,6 +6,13 @@ from numba import jit
 from util import colorize
 from matplotlib import pyplot as plt
 import time
+import pycuda.driver as cuda
+import pycuda.autoinit
+from pycuda.compiler import SourceModule
+from PyQt5.QtCore import *
+from pyqtgraph.Qt import QtCore, QtGui
+
+
 
 @jit(nopython=True)
 def jones(dist, eq_dist):
@@ -37,8 +44,6 @@ def charge_oscillation(charges, dist2):
     dcharge_dt = np.sum(charges * induction_strengths, axis=0)
     return dcharge_dt
 
-def charge_affinity
-
 class ParticleGraph(pg.GraphItem):
     def __init__(self, pos, vel, charges, eneg, idempot, dt):
         pg.setConfigOptions(antialias=True)
@@ -58,6 +63,7 @@ class ParticleGraph(pg.GraphItem):
         self.position = pos
         self.vel = vel
         self.charges = charges
+        self.debug = np.zeros_like(self.position)
         self.eneg = eneg
         self.idempot = idempot
         self.n_part = len(pos)
@@ -67,51 +73,81 @@ class ParticleGraph(pg.GraphItem):
         self.cmap = pg.ColorMap([-0.5,0,0.5], np.array([[255,0,0,255],[255,255,255,255],[0,0,255,255]]))
         pg.GraphItem.__init__(self)
 
+        self.position_gpu = cuda.mem_alloc(pos.nbytes)
+        self.vel_gpu = cuda.mem_alloc(vel.nbytes)
+        self.charges_gpu = cuda.mem_alloc(charges.nbytes)
+        self.dt_gpu = cuda.mem_alloc(dt.nbytes)
+        self.debug_gpu = cuda.mem_alloc(pos.nbytes)
+        self.n_gpu = cuda.mem_alloc(np.int32(self.n_part).nbytes)
+        cuda.memcpy_htod(self.position_gpu, pos)
+        cuda.memcpy_htod(self.vel_gpu, vel)
+        cuda.memcpy_htod(self.charges_gpu, charges)
+        cuda.memcpy_htod(self.dt_gpu, dt)
+        cuda.memcpy_htod(self.n_gpu, np.int32(self.n_part))
+
+        with open("nbody.cu", "r") as kernel_file:
+            source_module = SourceModule(kernel_file.read())
+
+        self.update_vel = source_module.get_function("applyForce")
+
+        self.BLOCK_SIZE = 256
+        self.nBlocks = (self.n_part + self.BLOCK_SIZE - 1) // self.BLOCK_SIZE
 
     def bond_order(self, dist2):
         a = -0.2
         return np.exp(a * dist2)
 
     def step(self):
-        dist = self.position - self.position[:, None, :]
-        dist2 = dist * dist
-        dist_mag = np.sum(dist2, axis=2)
-        # dist2 = dist_mag * dist_mag
-        # dist4 = dist2 * dist2
+        cuda.memcpy_dtoh(self.position, self.position_gpu)
+        cuda.memcpy_dtoh(self.vel, self.vel_gpu)
+        cuda.memcpy_dtoh(self.debug, self.debug_gpu)
+        self.update_vel(self.position_gpu, self.vel_gpu, self.debug_gpu, self.dt_gpu, self.n_gpu, block=(self.nBlocks, self.BLOCK_SIZE, 1), grid=(1, 1, 1))
 
-        # bond_order = self.bond_order(dist2)
+
+        # dist = self.position - self.position[:, None, :]
+        # dist2 = dist * dist
+        # dist_mag = np.sum(dist2, axis=2)
+        # # dist2 = dist_mag * dist_mag
+        # # dist4 = dist2 * dist2
         #
-        # atomic_coulomb_grad = -1 * dist_mag / (np.power(dist2 + 1, 1.5))
+        # # bond_order = self.bond_order(dist2)
+        # #
+        # # atomic_coulomb_grad = -1 * dist_mag / (np.power(dist2 + 1, 1.5))
+        # #
+        # # charge_grad = self.eneg + self.idempot * self.charges + 1*np.sum(bond_order * atomic_coulomb_grad, axis=1)
+        # # charge_transfer = charge_grad - charge_grad[None, :].T
         #
-        # charge_grad = self.eneg + self.idempot * self.charges + 1*np.sum(bond_order * atomic_coulomb_grad, axis=1)
-        # charge_transfer = charge_grad - charge_grad[None, :].T
-
-
-
-        # self.charges += np.sum(np.nan_to_num(charge_transfer * bond_order * bond_order * bond_order), axis=1) * 0.01
-        self.charges += charge_oscillation(self.charges, dist2) * 0.01
-
-        # particle_charge_attraction = 1.0 * self.charges[None, :] * self.charges[None, :].T / (0.05 + dist2)
-
-        attraction = 0.911 * jones(dist_mag * 1.00, self.eq_dist)# + particle_charge_attraction
-
-        force = attraction[:, :, None] * dist / dist_mag[:, :, None]
-        force = np.sum(np.nan_to_num(force), axis=0)
-
-        neg_embed = self.wall_dist[0] - np.minimum(self.wall_dist[0], self.position)
-        pos_embed = self.wall_dist[1] - np.maximum(self.wall_dist[1], self.position)
-        force += neg_embed * neg_embed
-        force -= pos_embed * pos_embed
-
-        self.vel += force * self.dt + self.grav_pull
-        # self.vel *= 0.99995
-
-        self.vel /= np.maximum(self.max_vel, np.abs(self.vel)) / self.max_vel
-        self.position += self.vel * self.dt
+        #
+        #
+        # # self.charges += np.sum(np.nan_to_num(charge_transfer * bond_order * bond_order * bond_order), axis=1) * 0.01
+        # self.charges += charge_oscillation(self.charges, dist2) * 0.01
+        #
+        # # particle_charge_attraction = 1.0 * self.charges[None, :] * self.charges[None, :].T / (0.05 + dist2)
+        #
+        # attraction = 0.911 * jones(dist_mag * 1.00, self.eq_dist)# + particle_charge_attraction
+        #
+        # force = attraction[:, :, None] * dist / dist_mag[:, :, None]
+        # force = np.sum(np.nan_to_num(force), axis=0)
+        #
+        # neg_embed = self.wall_dist[0] - np.minimum(self.wall_dist[0], self.position)
+        # pos_embed = self.wall_dist[1] - np.maximum(self.wall_dist[1], self.position)
+        # force += neg_embed * neg_embed
+        # force -= pos_embed * pos_embed
+        #
+        # self.vel += force * self.dt + self.grav_pull
+        # # self.vel *= 0.99995
+        #
+        # self.vel /= np.maximum(self.max_vel, np.abs(self.vel)) / self.max_vel
+        # self.position += self.vel * self.dt
 
     def redraw(self):
         # brush = self.cmap.map(np.sum(self.vel * self.vel, axis=1), 'qcolor') * 10
         # brush = self.cmap.map(self.charges, 'qcolor')
+
+        cuda.memcpy_dtoh(self.position, self.position_gpu)
+        cuda.memcpy_dtoh(self.vel, self.vel_gpu)
+        cuda.memcpy_dtoh(self.debug, self.debug_gpu)
+
         self.g.setData(pos=self.position, pen=0.5, symbol='o', size=self.eq_dist, pxMode=False, c=colorize(self.charges[None,:,0] + 1j * self.charges[None,:,1]))
         self.v.setXRange(-1 * self.view_window[0], self.view_window[0])
         self.v.setYRange(-1 * self.view_window[1], self.view_window[1])
@@ -146,22 +182,22 @@ class ParticleGraph(pg.GraphItem):
 
 if __name__ == '__main__':
 
-    dt = 0.125
+    dt = np.float32(0.125)
 
-    pos = np.array([[-1, -1], [1, 1]]).astype(np.float64)
-    pos = particle_grid(12, 1)
-    pos = np.array([[0,0]]).astype(np.float64)
+    pos = np.array([[-1, -1], [1, 1]]).astype(np.float32)
+    # pos = particle_grid(12, 1)
+    # pos = np.array([[0,0]]).astype(np.float64)
     vel = np.zeros_like(pos)
     n_part = len(pos)
     charge = np.random.random(n_part) * 2 - 1
     charges = np.linspace(-2,2,n_part)
     charges = np.zeros_like(charge)
-    charges = np.array([[2, -1]]).astype(np.float64)
+    charges = np.array([[2, -1]]).astype(np.float32)
 
-    eneg = np.array([1, 1]).astype(np.float64)
+    eneg = np.array([1, 1]).astype(np.float32)
     eneg = np.ones_like(charge)*1
     eneg = np.random.choice([1,1])
-    idempot = np.array([1, 1]).astype(np.float64)
+    idempot = np.array([1, 1]).astype(np.float32)
     idempot = np.ones_like(charge)
 
     grapher = ParticleGraph(pos=pos, vel=vel, charges=charges, eneg=eneg, idempot=idempot, dt=dt)
