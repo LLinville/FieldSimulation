@@ -184,7 +184,7 @@ if __name__ == '__main__':
 
     dt = np.float32(0.125)
 
-    pos = np.array([[-1, -1], [1, 1]]).astype(np.float32)
+    pos = np.array([[-1, -1], [1, 1]]).astype(np.float64)
     # pos = particle_grid(12, 1)
     # pos = np.array([[0,0]]).astype(np.float64)
     vel = np.zeros_like(pos)

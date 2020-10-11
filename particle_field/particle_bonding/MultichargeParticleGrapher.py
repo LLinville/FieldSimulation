@@ -158,7 +158,7 @@ if __name__ == '__main__':
 
     eneg = np.array([1, 1]).astype(np.float64)
     eneg = np.ones_like(charge)*1
-    eneg = np.random.choice([1,1])
+    # eneg = np.random.choice([1,1])
     idempot = np.array([1, 1]).astype(np.float64)
     idempot = np.ones_like(charge)
 
