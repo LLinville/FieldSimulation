@@ -28,7 +28,7 @@ def particle_grid(width, spacing):
     part_per_row = (grid_max - grid_min) // spacing
     pos = np.array([[x, y] for x in np.linspace(grid_min, grid_max, part_per_row) for y in
                     np.linspace(grid_min, grid_max, part_per_row)])
-    return pos
+    return pos.astype(np.float32)
 
 
 def charge_oscillation(charges, dist2):
@@ -66,7 +66,7 @@ class ParticleGraph(pg.GraphItem):
         self.debug = np.zeros_like(self.position)
         self.eneg = eneg
         self.idempot = idempot
-        self.n_part = len(pos)
+        self.n_part = np.int32(len(pos))
         self.eq_dist = 1
         self.grav_pull = np.array([0,-1]) * 0.00000
         self.max_vel = 1
@@ -78,12 +78,12 @@ class ParticleGraph(pg.GraphItem):
         self.charges_gpu = cuda.mem_alloc(charges.nbytes)
         self.dt_gpu = cuda.mem_alloc(dt.nbytes)
         self.debug_gpu = cuda.mem_alloc(pos.nbytes)
-        self.n_gpu = cuda.mem_alloc(np.int32(self.n_part).nbytes)
+        self.n_gpu = pycuda.driver.to_device(self.n_part*2)
         cuda.memcpy_htod(self.position_gpu, pos)
         cuda.memcpy_htod(self.vel_gpu, vel)
         cuda.memcpy_htod(self.charges_gpu, charges)
         cuda.memcpy_htod(self.dt_gpu, dt)
-        cuda.memcpy_htod(self.n_gpu, np.int32(self.n_part))
+        cuda.memcpy_htod(self.n_gpu, self.n_part)
 
         with open("nbody.cu", "r") as kernel_file:
             source_module = SourceModule(kernel_file.read())
@@ -101,7 +101,7 @@ class ParticleGraph(pg.GraphItem):
         cuda.memcpy_dtoh(self.position, self.position_gpu)
         cuda.memcpy_dtoh(self.vel, self.vel_gpu)
         cuda.memcpy_dtoh(self.debug, self.debug_gpu)
-        self.update_vel(self.position_gpu, self.vel_gpu, self.debug_gpu, self.dt_gpu, self.n_gpu, block=(self.nBlocks, self.BLOCK_SIZE, 1), grid=(1, 1, 1))
+        self.update_vel(self.position_gpu, self.vel_gpu, self.debug_gpu, self.dt_gpu, self.n_gpu, block=(self.BLOCK_SIZE, 1, 1), grid=(int(self.nBlocks), 1, 1))
 
 
         # dist = self.position - self.position[:, None, :]
@@ -148,9 +148,9 @@ class ParticleGraph(pg.GraphItem):
         cuda.memcpy_dtoh(self.vel, self.vel_gpu)
         cuda.memcpy_dtoh(self.debug, self.debug_gpu)
 
-        self.g.setData(pos=self.position, pen=0.5, symbol='o', size=self.eq_dist, pxMode=False, c=colorize(self.charges[None,:,0] + 1j * self.charges[None,:,1]))
         self.v.setXRange(-1 * self.view_window[0], self.view_window[0])
         self.v.setYRange(-1 * self.view_window[1], self.view_window[1])
+        self.g.setData(pos=self.position, pen=0.5, symbol='o', size=self.eq_dist, pxMode=False, c=colorize(self.charges[None,:,0] + 1j * self.charges[None,:,1]))
 
     def mouseDragEvent(self, ev):
         if ev.button() != QtCore.Qt.LeftButton:
@@ -182,12 +182,14 @@ class ParticleGraph(pg.GraphItem):
 
 if __name__ == '__main__':
 
-    dt = np.float32(0.125)
+    dt = np.float32(10.125)
 
-    pos = np.array([[-1, -1], [1, 1]]).astype(np.float64)
-    # pos = particle_grid(12, 1)
-    # pos = np.array([[0,0]]).astype(np.float64)
+    pos = np.array([[0, -1], [0, 1], [-1, 0], [1, 0], [2,2]]).astype(np.float32)
+    pos = np.random.random((1000,2)).astype(np.float32)*20-10
+    # pos = particle_grid(100, 2).astype(np.float32)
     vel = np.zeros_like(pos)
+    vel = np.random.random((1000,2)).astype(np.float32)*0.1
+    # vel = np.array([[-1, 0], [1, 0], [0, 1], [0, -1], [0,0]]).astype(np.float32)
     n_part = len(pos)
     charge = np.random.random(n_part) * 2 - 1
     charges = np.linspace(-2,2,n_part)
@@ -203,13 +205,12 @@ if __name__ == '__main__':
     grapher = ParticleGraph(pos=pos, vel=vel, charges=charges, eneg=eneg, idempot=idempot, dt=dt)
 
     history = []
-    iter_per_redraw = 1000
+    iter_per_redraw = 10000
     start = time.time()
     for iter in count():
         grapher.step()
         history.append(grapher.charges.copy())
         if iter % iter_per_redraw == 0:
-            print(charges)
             grapher.redraw()
             grapher.app.processEvents()
             end = time.time()
