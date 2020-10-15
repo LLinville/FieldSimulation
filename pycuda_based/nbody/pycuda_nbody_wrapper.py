@@ -40,7 +40,7 @@ if __name__ == "__main__":
     cuda.memcpy_htod(n_gpu, bytes(n))
     cuda.memcpy_htod(debug_gpu, debug)
 
-    with open("nbody.cu", "r") as kernel_file:
+    with open("nbody.c", "r") as kernel_file:
         source_module = SourceModule(kernel_file.read())
 
     update_vel = source_module.get_function("applyForce")
