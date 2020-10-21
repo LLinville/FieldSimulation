@@ -57,7 +57,7 @@ class ParticleGraph(pg.GraphItem):
         self.v = self.w.addPlot()
         self.v.addItem(self.g)
         self.v.getViewBox().setAspectLocked(True)
-        self.view_window = (-81,81)
+        self.view_window = (-51,51)
         self.wall_dist = (-30,30)
         self.dragged_point_index = None
         self.dragOffset = None
@@ -104,45 +104,7 @@ class ParticleGraph(pg.GraphItem):
         return np.exp(a * dist2)
 
     def step(self):
-
-        self.update_vel(self.position_gpu, self.vel_gpu,  self.dt_gpu, self.n_part, block=(self.BLOCK_SIZE, 1, 1), grid=(int(self.nBlocks), 1, 1))
-
-
-        # dist = self.position - self.position[:, None, :]
-        # dist2 = dist * dist
-        # dist_mag = np.sum(dist2, axis=2)
-        # # dist2 = dist_mag * dist_mag
-        # # dist4 = dist2 * dist2
-        #
-        # # bond_order = self.bond_order(dist2)
-        # #
-        # # atomic_coulomb_grad = -1 * dist_mag / (np.power(dist2 + 1, 1.5))
-        # #
-        # # charge_grad = self.eneg + self.idempot * self.charges + 1*np.sum(bond_order * atomic_coulomb_grad, axis=1)
-        # # charge_transfer = charge_grad - charge_grad[None, :].T
-        #
-        #
-        #
-        # # self.charges += np.sum(np.nan_to_num(charge_transfer * bond_order * bond_order * bond_order), axis=1) * 0.01
-        # self.charges += charge_oscillation(self.charges, dist2) * 0.01
-        #
-        # # particle_charge_attraction = 1.0 * self.charges[None, :] * self.charges[None, :].T / (0.05 + dist2)
-        #
-        # attraction = 0.911 * jones(dist_mag * 1.00, self.eq_dist)# + particle_charge_attraction
-        #
-        # force = attraction[:, :, None] * dist / dist_mag[:, :, None]
-        # force = np.sum(np.nan_to_num(force), axis=0)
-        #
-        # neg_embed = self.wall_dist[0] - np.minimum(self.wall_dist[0], self.position)
-        # pos_embed = self.wall_dist[1] - np.maximum(self.wall_dist[1], self.position)
-        # force += neg_embed * neg_embed
-        # force -= pos_embed * pos_embed
-        #
-        # self.vel += force * self.dt + self.grav_pull
-        # # self.vel *= 0.99995
-        #
-        # self.vel /= np.maximum(self.max_vel, np.abs(self.vel)) / self.max_vel
-        # self.position += self.vel * self.dt
+        self.update_vel(self.position_gpu, self.vel_gpu,  self.charges_gpu, self.dt_gpu, self.n_part, block=(self.BLOCK_SIZE, 1, 1), grid=(int(self.nBlocks), 1, 1))
 
     def redraw(self):
         brush = self.cmap.map(np.sum(self.vel * self.vel, axis=1), 'qcolor')
@@ -192,9 +154,9 @@ if __name__ == '__main__':
 
     # pos = np.array([[0, -1], [0, 1], [-1, 0], [1, 0], [2,2]]).astype(np.float32)
     # pos = np.random.random((100,2)).astype(np.float32)*20-10
-    pos = particle_grid(33, 1.0).astype(np.float32)
+    pos = particle_grid(31, 1.0).astype(np.float32)
     vel = np.zeros_like(pos)
-    # vel = np.random.random((5,2)).astype(np.float32)*0.1-0.05
+    vel = np.random.random((vel.shape[0],2)).astype(np.float32)*0.1-0.05
     # vel = np.array([[-1, 0], [1, 0], [0, 1], [0, -1], [0,0]]).astype(np.float32)
     n_part = len(pos)
     charge = np.random.random(n_part) * 2 - 1
@@ -211,7 +173,7 @@ if __name__ == '__main__':
     grapher = ParticleGraph(pos=pos, vel=vel, charges=charges, eneg=eneg, idempot=idempot, dt=dt)
 
     history = []
-    iter_per_redraw = 1000
+    iter_per_redraw = 800
     start = time.time()
     for iter in count():
         grapher.step()

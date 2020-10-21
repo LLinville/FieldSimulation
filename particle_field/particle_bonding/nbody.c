@@ -10,9 +10,8 @@ void randomizeBodies(float *data, int n) {
 }
 
 
-
 __global__
-void applyForce(float2 *p, float2 *v, float dt, int *n_array) {
+void applyForce(float2 *p, float2 *v, float *c, float dt, int *n_array) {
 
     //printf("dt: %.5f\n",dt);
     //printf("n: %d\n",n_array);
@@ -22,7 +21,7 @@ void applyForce(float2 *p, float2 *v, float dt, int *n_array) {
   //printf("float size: %d\n", sizeof(float));
   //printf("tID: %d, bID: %d\n", threadIdx.x, blockIdx.x);
   //printf("i=%d: (%d, %d)\n", i, p[i].x, p[i].y);
-  dt = 0.01f;
+  dt = 0.008f;
   //printf("%.12f\n", dt);
   if (i < n) {
     //printf("i=%d: (%f, %f)\n", i, p[i].x, p[i].y);
@@ -31,31 +30,35 @@ void applyForce(float2 *p, float2 *v, float dt, int *n_array) {
 
     for (int tile = 0; tile < gridDim.x; tile++) {
       __shared__ float2 spos[BLOCK_SIZE];
-      //int tid=tile * blockDim.x + threadIdx.x;
+      int tile_items = tile == gridDim.x-1 ? n%BLOCK_SIZE : BLOCK_SIZE;
       float2 tpos = p[tile * BLOCK_SIZE + threadIdx.x];
 
-      spos[threadIdx.x] = tpos;//make_float2(tpos.x, tpos.y);
+      spos[threadIdx.x] = tpos;
       __syncthreads();
 
-      int tile_items = tile == gridDim.x-1 ? n%BLOCK_SIZE : BLOCK_SIZE;
       //printf("Tile %d items: %d\n", tile, tile_items);
       #pragma unroll
-      for (int j = 0; j < tile_items; j++) {
-
-        if (i == j) continue;
-//        if (tile == gridDim.x-1 && j>=n%BLOCK_SIZE) {
-//        //printf("Breaking on tid=%d\n",tid);
-//        //printf("tID: %d, j: %d\n", tile, j);
-//        continue;
-//        } else {
-//            //printf("calculating tid=%d\n",tid);
-//        }
+      for (int j = 0; j < BLOCK_SIZE; j++) {
+        if (i == j || j >= tile_items) continue;
 
 
-        float dx = spos[j].x - p[i].x;
-        float dy = spos[j].y - p[i].y;
-        float distSqr = dx*dx + dy*dy + SOFTENING;
-        float invDist = rsqrtf(distSqr);
+
+        float dx = p[tile * BLOCK_SIZE + j].x - p[i].x;
+        float dy = p[tile * BLOCK_SIZE + j].y - p[i].y;
+        //if (dx > 5 || dx < -5 || dy > 5 || dy < -5) continue;
+
+        float dist2 = dx*dx + dy*dy + SOFTENING;
+        float dist = sqrtf(dist2);
+        float dist4 = dist2 * dist2;
+
+
+        float offsetDist = dist - 0.5f;
+        offsetDist = offsetDist < 0.f ? 0.f : offsetDist;
+        float bondOrder = expf(-1.f * offsetDist * offsetDist);
+        printf("Bond order %d,%d: %.5f\n", i, j, bondOrder);
+
+        //if (distSqr > 4) continue;
+        float invDist = 1.f/dist;
         float invDist3 = invDist * invDist * invDist;
         float invDist6 = invDist3 * invDist3;
         float strength = 1.0f;
@@ -63,8 +66,8 @@ void applyForce(float2 *p, float2 *v, float dt, int *n_array) {
         Fx -= dx * invDist * fmag;
         Fy -= dy * invDist * fmag;
         //Fx += dx * invDist3 * strength; Fy += dy * invDist3 * strength;
-        //printf("i,j: %d, %d, Fx,Fy:%.5f,%.5f\n", i, tid, dx * fmag * strength, dy * fmag * strength);
-        //printf("i,j: %d, %d, Dx,Dy:%.5f,%.5f\n", i, j, dx, dy);
+        //printf("i,j: %d, %d, Fx,Fy:%.5f,%.5f\n", i, j, dx * fmag * strength, dy * fmag * strength);
+        //if (tile == gridDim.x-1) {printf("i,j: %d, %d, Dx,Dy:%.5f,%.5f\n", i, j, dx, dy);}
       }
       __syncthreads();
     }
@@ -81,11 +84,14 @@ void applyForce(float2 *p, float2 *v, float dt, int *n_array) {
     v[i].y *= p[i].y > box_width ? -1.f : 1.f;
 
     //printf("%f\n",v[i].x);
-    //v[i].x = min(max(v[i].x, -1.f), 1.f);
-    //v[i].y = min(max(v[i].y, -1.f), 1.f);
+    v[i].x = min(max(v[i].x, -1.f), 1.f);
+    v[i].y = min(max(v[i].y, -1.f), 1.f);
 
-    v[i].x *= 0.999999f;
-    v[i].y *= 0.999999f;
+//    v[i].x *= 0.9999f;
+//    v[i].y *= 0.9999f;
+    v[i].x *= 1.000001;
+    v[i].y *= 1.000001;
+    v[i].y -= 0.000001f;
     v[i].x += dt*Fx; v[i].y += dt*Fy;
     p[i].x += v[i].x*dt; p[i].y += v[i].y*dt;
     //d[i].y = 2.0f;
