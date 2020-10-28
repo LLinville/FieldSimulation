@@ -26,12 +26,12 @@ def jones(dist, eq_dist):
 def particle_grid(width, spacing):
     grid_min, grid_max = -1*width/2, width/2
     part_per_row = (grid_max - grid_min) // spacing
-    pos = np.array([[x, y] for x in np.linspace(grid_min, grid_max, part_per_row) for y in
+    pos = np.array([[x, y] for x in np.linspace(grid_min, grid_max, part_per_row+2) for y in
                     np.linspace(grid_min, grid_max, part_per_row)])
     return pos.astype(np.float32)
 
 
-def charge_oscillation(charges, dist2):
+def charge_oscillation(charge, dist2):
     # A catalyzes -B -> B
     # B catalyzes A -> -A
     # -A catalyzes B -> -B
@@ -41,23 +41,24 @@ def charge_oscillation(charges, dist2):
     # Diagonal zeros
     induction_strengths = np.array([[0.0, -1], [-1, 0.0]])
 
-    dcharge_dt = np.sum(charges * induction_strengths, axis=0)
+    dcharge_dt = np.sum(charge * induction_strengths, axis=0)
     return dcharge_dt
 
 class ParticleGraph(pg.GraphItem):
-    def __init__(self, pos, vel, charges, eneg, idempot, dt):
+    def __init__(self, pos, vel, charge, eneg, max_bond_order, idempot, dt):
         pg.setConfigOptions(antialias=True)
 
         self.app = QtGui.QApplication([])
         self.w = pg.GraphicsWindow()
         self.w.setWindowTitle('Particles')
-        self.g = pg.GraphItem()
+        self.g1 = pg.GraphItem()
         pg.GraphItem.__init__(self)
         #self.scatter.sigClicked.connect(self.clicked)
-        self.v = self.w.addPlot()
-        self.v.addItem(self.g)
-        self.v.getViewBox().setAspectLocked(True)
-        self.view_window = (-51,51)
+        self.v1 = self.w.addPlot()
+        # self.v2 = self.w.addPlot()
+        self.v1.addItem(self.g1)
+        self.v1.getViewBox().setAspectLocked(True)
+        self.view_window = (-31,31)
         self.wall_dist = (-30,30)
         self.dragged_point_index = None
         self.dragOffset = None
@@ -65,26 +66,36 @@ class ParticleGraph(pg.GraphItem):
         self.dt = dt
         self.position = pos
         self.vel = vel
-        self.charges = charges
+        self.charge = charge
         self.debug = np.zeros_like(self.position)
         self.eneg = eneg
+        self.total_bond_order = np.zeros_like(self.charge)
+        self.max_bond_order = max_bond_order
         self.idempot = idempot
         self.n_part = np.array([pos.shape[0]]).astype(np.int32)
         self.eq_dist = 1
         self.grav_pull = np.array([0,-1]) * 0.00000
         self.max_vel = 1
-        self.cmap = pg.ColorMap([-0.1,0,0.1], np.array([[255,0,0,255],[255,255,255,255],[0,0,255,255]]))
+        self.cmap = pg.ColorMap([max_bond_order[0]+1, max_bond_order[0], max_bond_order[0]-1], np.array([[255,0,0,255],[255,255,255,255],[0,0,255,255]]))
         pg.GraphItem.__init__(self)
+
+        self.history = np.zeros((1, n_part))
 
         self.position_gpu = cuda.mem_alloc(pos.nbytes)
         self.vel_gpu = cuda.mem_alloc(vel.nbytes)
-        self.charges_gpu = cuda.mem_alloc(charges.nbytes)
+        self.charge_gpu = cuda.mem_alloc(charge.nbytes)
         self.dt_gpu = cuda.mem_alloc(dt.nbytes)
         self.debug_gpu = cuda.mem_alloc(pos.nbytes)
+        self.eneg_gpu = cuda.mem_alloc(eneg.nbytes)
+        self.total_bond_order_gpu = cuda.mem_alloc(self.total_bond_order.nbytes)
+        self.max_bond_order_gpu = cuda.mem_alloc(self.max_bond_order.nbytes)
         self.n_gpu = cuda.mem_alloc(self.n_part.nbytes)
         cuda.memcpy_htod(self.position_gpu, pos)
         cuda.memcpy_htod(self.vel_gpu, vel)
-        cuda.memcpy_htod(self.charges_gpu, charges)
+        cuda.memcpy_htod(self.charge_gpu, charge)
+        cuda.memcpy_htod(self.eneg_gpu, eneg)
+        cuda.memcpy_htod(self.total_bond_order_gpu, self.total_bond_order)
+        cuda.memcpy_htod(self.max_bond_order_gpu, self.max_bond_order)
         cuda.memcpy_htod(self.dt_gpu, dt)
         cuda.memcpy_htod(self.n_gpu, self.n_part)
 
@@ -104,18 +115,39 @@ class ParticleGraph(pg.GraphItem):
         return np.exp(a * dist2)
 
     def step(self):
-        self.update_vel(self.position_gpu, self.vel_gpu,  self.charges_gpu, self.dt_gpu, self.n_part, block=(self.BLOCK_SIZE, 1, 1), grid=(int(self.nBlocks), 1, 1))
+        # cuda.memcpy_dtoh(self.vel, self.vel_gpu)
+        # self.history = np.concatenate((self.history, np.sum(grapher.vel * grapher.vel, axis=1)[None, :]))
+        # if self.history.shape[0] > 1000:
+        #     self.history = self.history[:900]
+
+        self.update_vel(self.position_gpu,
+                        self.vel_gpu,
+                        self.charge_gpu,
+                        self.eneg_gpu,
+                        self.total_bond_order_gpu,
+                        self.max_bond_order_gpu,
+                        self.dt_gpu,
+                        self.n_part,
+                        block=(self.BLOCK_SIZE, 1, 1),
+                        grid=(int(self.nBlocks), 1, 1))
 
     def redraw(self):
-        brush = self.cmap.map(np.sum(self.vel * self.vel, axis=1), 'qcolor')
+        # brush = self.cmap.map(np.sum(self.vel * self.vel, axis=1), 'qcolor')
 
         cuda.memcpy_dtoh(self.position, self.position_gpu)
         cuda.memcpy_dtoh(self.vel, self.vel_gpu)
-        cuda.memcpy_dtoh(self.debug, self.debug_gpu)
+        cuda.memcpy_dtoh(self.charge, self.charge_gpu)
+        cuda.memcpy_dtoh(self.total_bond_order, self.total_bond_order_gpu)
+        brush = self.cmap.map(self.max_bond_order, 'qcolor')
 
-        self.g.setData(pos=np.nan_to_num(self.position), pen=0.5, symbol='o', size=self.eq_dist, brush=brush, pxMode=False, c=colorize(self.charges[None,:,0] + 1j * self.charges[None,:,1]))
-        self.v.setXRange(-1 * self.view_window[0], self.view_window[0])
-        self.v.setYRange(-1 * self.view_window[1], self.view_window[1])
+
+
+        self.g1.setData(pos=np.nan_to_num(self.position), pen=0.5, symbol='o', size=self.eq_dist, brush=brush, pxMode=False)#, c=colorize(self.n_part[None,:]))
+        # y,x = np.histogram(self.history, bins=np.linspace(0.000000, 1.5, 100))
+        # self.v2.clear()
+        # self.v2.plot(x[:-1],y)
+        self.v1.setXRange(-1 * self.view_window[0], self.view_window[0])
+        self.v1.setYRange(-1 * self.view_window[1], self.view_window[1])
 
     def clicked(self, pts):
         print("clicked: %s" % pts)
@@ -154,30 +186,34 @@ if __name__ == '__main__':
 
     # pos = np.array([[0, -1], [0, 1], [-1, 0], [1, 0], [2,2]]).astype(np.float32)
     # pos = np.random.random((100,2)).astype(np.float32)*20-10
-    pos = particle_grid(31, 1.0).astype(np.float32)
+    pos = particle_grid(24, 3.0).astype(np.float32)
     vel = np.zeros_like(pos)
     vel = np.random.random((vel.shape[0],2)).astype(np.float32)*0.1-0.05
     # vel = np.array([[-1, 0], [1, 0], [0, 1], [0, -1], [0,0]]).astype(np.float32)
     n_part = len(pos)
-    charge = np.random.random(n_part) * 2 - 1
-    charges = np.linspace(-2,2,n_part)
-    charges = np.zeros_like(charge)
-    charges = np.array([[2, -1]]).astype(np.float32)
+    # charge = np.random.random(n_part) * 2 - 1
+    # charge = np.linspace(-1,1,n_part).astype(np.float32)
+    charge = np.zeros(n_part).astype(np.float32)
+    # charge = np.array([[2, -1]]).astype(np.float32)
 
     eneg = np.array([1, 1]).astype(np.float32)
-    eneg = np.ones_like(charge)*1
-    eneg = np.random.choice([1,1])
+    # eneg = np.ones_like(charge)*1
+    eneg = np.random.choice([1,2], size=charge.size).astype(np.float32)
     idempot = np.array([1, 1]).astype(np.float32)
     idempot = np.ones_like(charge)
 
-    grapher = ParticleGraph(pos=pos, vel=vel, charges=charges, eneg=eneg, idempot=idempot, dt=dt)
+    # max_bond_order = np.random.choice([1,4], size=charge.size).astype(np.float32)
+    max_bond_order = eneg * 1
 
-    history = []
-    iter_per_redraw = 800
+    grapher = ParticleGraph(pos=pos, vel=vel, charge=charge, eneg=eneg, max_bond_order=max_bond_order, idempot=idempot, dt=dt)
+
+    # history = []
+
+    iter_per_redraw = 1000
     start = time.time()
     for iter in count():
         grapher.step()
-        history.append(grapher.charges.copy())
+        # history.append(grapher.charge.copy())
         if iter % iter_per_redraw == 0:
             grapher.redraw()
             grapher.app.processEvents()

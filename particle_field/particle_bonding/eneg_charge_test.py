@@ -25,11 +25,11 @@ dist2 = np.sum(dist * dist, axis=2)
 dist_mag = np.sqrt(dist2)
 dist4 = dist2 * dist2
 
-for iter in count():
+for iter in range(200):
     # atomic_coulomb_energy = charge * charge[None,:].T / np.sqrt(dist2 + 0.51)
-    atomic_coulomb_grad = -1 * dist_mag / (np.power(dist2 + 1, 1.5))
+    atomic_coulomb_grad = 1 * dist_mag / (np.power(dist2 + 1, 2))
 
-    charge_grad = eneg + idempot*charge + np.sum(atomic_coulomb_grad, axis=1)
+    charge_grad = eneg + idempot*charge + 1 * np.sum(atomic_coulomb_grad, axis=1)
     charge_transfer = charge_grad - charge_grad[None,:].T
 
 
