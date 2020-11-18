@@ -1,16 +1,23 @@
+#!/c/Users/Eracoy/virtualenv/graphicsMisc/Scripts python
+
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
 from itertools import count
 from numba import jit
-from util import colorize
+# from util import colorize
 from matplotlib import pyplot as plt
 import time
 import pycuda.driver as cuda
+import pycuda.driver
+pycuda.driver.set_debugging()
 import pycuda.autoinit
+
+# import pycuda.debug
 from pycuda.compiler import SourceModule
 from PyQt5.QtCore import *
 from pyqtgraph.Qt import QtCore, QtGui
+import random
 
 
 
@@ -45,7 +52,7 @@ def charge_oscillation(charge, dist2):
     return dcharge_dt
 
 class ParticleGraph(pg.GraphItem):
-    def __init__(self, pos, vel, charge, eneg, max_bond_order, idempot, dt):
+    def __init__(self, pos, vel, charge, charge_attractions, eneg, max_bond_order, idempot, dt):
         pg.setConfigOptions(antialias=True)
 
         self.app = QtGui.QApplication([])
@@ -58,8 +65,11 @@ class ParticleGraph(pg.GraphItem):
         # self.v2 = self.w.addPlot()
         self.v1.addItem(self.g1)
         self.v1.getViewBox().setAspectLocked(True)
+        self.v1.getViewBox().disableAutoRange()
         self.view_window = (-31,31)
         self.wall_dist = (-30,30)
+        self.v1.setXRange(-1 * self.view_window[0], self.view_window[0])
+        self.v1.setYRange(-1 * self.view_window[1], self.view_window[1])
         self.dragged_point_index = None
         self.dragOffset = None
 
@@ -67,6 +77,7 @@ class ParticleGraph(pg.GraphItem):
         self.position = pos
         self.vel = vel
         self.charge = charge
+        self.charge_attractions = charge_attractions
         self.debug = np.zeros_like(self.position)
         self.eneg = eneg
         self.total_bond_order = np.zeros_like(self.charge)
@@ -76,7 +87,7 @@ class ParticleGraph(pg.GraphItem):
         self.eq_dist = 1
         self.grav_pull = np.array([0,-1]) * 0.00000
         self.max_vel = 1
-        self.cmap = pg.ColorMap([max_bond_order[0]+1, max_bond_order[0], max_bond_order[0]-1], np.array([[255,0,0,255],[255,255,255,255],[0,0,255,255]]))
+        self.cmap = pg.ColorMap([1, 0, -1], np.array([[255,0,0,255],[255,255,255,255],[0,0,255,255]]))
         pg.GraphItem.__init__(self)
 
         self.history = np.zeros((1, n_part))
@@ -84,15 +95,17 @@ class ParticleGraph(pg.GraphItem):
         self.position_gpu = cuda.mem_alloc(pos.nbytes)
         self.vel_gpu = cuda.mem_alloc(vel.nbytes)
         self.charge_gpu = cuda.mem_alloc(charge.nbytes)
+        self.charge_attractions_gpu = cuda.mem_alloc(charge_attractions.nbytes)
         self.dt_gpu = cuda.mem_alloc(dt.nbytes)
         self.debug_gpu = cuda.mem_alloc(pos.nbytes)
         self.eneg_gpu = cuda.mem_alloc(eneg.nbytes)
         self.total_bond_order_gpu = cuda.mem_alloc(self.total_bond_order.nbytes)
         self.max_bond_order_gpu = cuda.mem_alloc(self.max_bond_order.nbytes)
         self.n_gpu = cuda.mem_alloc(self.n_part.nbytes)
-        cuda.memcpy_htod(self.position_gpu, pos)
-        cuda.memcpy_htod(self.vel_gpu, vel)
-        cuda.memcpy_htod(self.charge_gpu, charge)
+        cuda.memcpy_htod(self.position_gpu, self.position)
+        cuda.memcpy_htod(self.vel_gpu, self.vel)
+        cuda.memcpy_htod(self.charge_gpu, self.charge.flatten())
+        cuda.memcpy_htod(self.charge_attractions_gpu, self.charge_attractions.flatten())
         cuda.memcpy_htod(self.eneg_gpu, eneg)
         cuda.memcpy_htod(self.total_bond_order_gpu, self.total_bond_order)
         cuda.memcpy_htod(self.max_bond_order_gpu, self.max_bond_order)
@@ -100,7 +113,7 @@ class ParticleGraph(pg.GraphItem):
         cuda.memcpy_htod(self.n_gpu, self.n_part)
 
         with open("nbody.c", "r") as kernel_file:
-            source_module = SourceModule(kernel_file.read())
+            source_module = SourceModule(kernel_file.read(), options=['-g'])
 
         self.update_vel = source_module.get_function("applyForce")
 
@@ -108,7 +121,7 @@ class ParticleGraph(pg.GraphItem):
         self.nBlocks = (self.n_part + self.BLOCK_SIZE - 1) // self.BLOCK_SIZE
 
         pg.GraphItem.__init__(self)
-        self.scatter.mouseClickEvent = self.mouseClickEvent
+        # pg.sigClicked.connect(self.handleMouseClickEvent)
 
     def bond_order(self, dist2):
         a = -0.2
@@ -123,6 +136,7 @@ class ParticleGraph(pg.GraphItem):
         self.update_vel(self.position_gpu,
                         self.vel_gpu,
                         self.charge_gpu,
+                        self.charge_attractions_gpu,
                         self.eneg_gpu,
                         self.total_bond_order_gpu,
                         self.max_bond_order_gpu,
@@ -138,21 +152,26 @@ class ParticleGraph(pg.GraphItem):
         cuda.memcpy_dtoh(self.vel, self.vel_gpu)
         cuda.memcpy_dtoh(self.charge, self.charge_gpu)
         cuda.memcpy_dtoh(self.total_bond_order, self.total_bond_order_gpu)
-        brush = self.cmap.map(self.max_bond_order, 'qcolor')
+        # brush = self.cmap.map(np.sum(self.charge * self.charge, axis=1), 'qcolor')
+        # brush = self.cmap.map(self.charge, 'qcolor')
 
 
-
-        self.g1.setData(pos=np.nan_to_num(self.position), pen=0.5, symbol='o', size=self.eq_dist, brush=brush, pxMode=False)#, c=colorize(self.n_part[None,:]))
+        self.g1.setData(pos=np.nan_to_num(self.position),
+                        pen=0.5,
+                        symbol='o',
+                        size=self.eq_dist,
+                        brush=[pg.mkColor(self.charge[i][0]*255,self.charge[i][1]*255,self.charge[i][2]*255) for i in range(n_part)],
+                        pxMode=False)#, c=colorize(self.n_part[None,:]))
         # y,x = np.histogram(self.history, bins=np.linspace(0.000000, 1.5, 100))
         # self.v2.clear()
         # self.v2.plot(x[:-1],y)
-        self.v1.setXRange(-1 * self.view_window[0], self.view_window[0])
-        self.v1.setYRange(-1 * self.view_window[1], self.view_window[1])
+        # self.v1.setXRange(-1 * self.view_window[0], self.view_window[0])
+        # self.v1.setYRange(-1 * self.view_window[1], self.view_window[1])
 
     def clicked(self, pts):
         print("clicked: %s" % pts)
 
-    def mouseClickEvent(self, ev):
+    def handleMouseClickEvent(self, ev):
         if ev.button() != QtCore.Qt.LeftButton:
             ev.ignore()
             return
@@ -186,15 +205,32 @@ if __name__ == '__main__':
 
     # pos = np.array([[0, -1], [0, 1], [-1, 0], [1, 0], [2,2]]).astype(np.float32)
     # pos = np.random.random((100,2)).astype(np.float32)*20-10
-    pos = particle_grid(24, 3.0).astype(np.float32)
+    pos = particle_grid(15, 1.5).astype(np.float32)
     vel = np.zeros_like(pos)
-    vel = np.random.random((vel.shape[0],2)).astype(np.float32)*0.1-0.05
+    # vel = np.random.random((vel.shape[0],2)).astype(np.float32)*0.1-0.05
     # vel = np.array([[-1, 0], [1, 0], [0, 1], [0, -1], [0,0]]).astype(np.float32)
     n_part = len(pos)
+    n_charges = 2
     # charge = np.random.random(n_part) * 2 - 1
     # charge = np.linspace(-1,1,n_part).astype(np.float32)
-    charge = np.zeros(n_part).astype(np.float32)
+    charge = np.ones((n_part, n_charges)).astype(np.float32)
     # charge = np.array([[2, -1]]).astype(np.float32)
+    # charge = np.random.choice([1,0,-1], size=charge.shape).astype(np.float32)
+    charge = np.array([[[1,0,0], [0,1,0], [0,0,1]][random.choice([0,1,1,1,2])] for i in range(n_part)]).astype(np.float32)
+
+
+    pair_attractions = [
+        [1, 5, 1],
+        [5, 1, 5],
+        [1, 5, 1]
+    ]
+    pair_attractions = np.array([
+        [1, 1, 1],
+        [1, 10, 1],
+        [1, 1, 10]
+    ]) * -1.1
+    charge_attractions = np.matmul(charge, pair_attractions).astype(np.float32)
+    # charge_attractions = np.ones_like(charge)
 
     eneg = np.array([1, 1]).astype(np.float32)
     # eneg = np.ones_like(charge)*1
@@ -205,11 +241,11 @@ if __name__ == '__main__':
     # max_bond_order = np.random.choice([1,4], size=charge.size).astype(np.float32)
     max_bond_order = eneg * 1
 
-    grapher = ParticleGraph(pos=pos, vel=vel, charge=charge, eneg=eneg, max_bond_order=max_bond_order, idempot=idempot, dt=dt)
+    grapher = ParticleGraph(pos=pos, vel=vel, charge=charge, charge_attractions=charge_attractions, eneg=eneg, max_bond_order=max_bond_order, idempot=idempot, dt=dt)
 
     # history = []
 
-    iter_per_redraw = 1000
+    iter_per_redraw = 100
     start = time.time()
     for iter in count():
         grapher.step()
@@ -223,5 +259,9 @@ if __name__ == '__main__':
                 start = end
             except Exception as e:
                 print(e)
+        pycuda.driver.stop_profiler()
+        # pycuda.autoinit.context.detach()
+
     # if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
     #     QtGui.QApplication.instance().exec_()
+
