@@ -31,7 +31,7 @@ void applyForce(float2 *pos, float2 *vel, float *charges, float *chargeAttractio
     int i = blockIdx.x * BLOCK_SIZE + threadIdx.x;
 
 
-    dt = 0.0034f;
+    dt = 0.0134f;
     float Fx = 0.0f; float Fy = 0.0f;
     float charge_loss = 0.f;//1.0f + 1.0f * c[i]; // eneg + charge*hardness
     float newTotalBondOrder = 0.f;
@@ -55,7 +55,7 @@ void applyForce(float2 *pos, float2 *vel, float *charges, float *chargeAttractio
 //              }
             scharges[threadIdx.x * N_CHARGES + chargeIndex] = charges[(tile * BLOCK_SIZE + threadIdx.x) * N_CHARGES + chargeIndex];
         }
-        }
+      }
       __syncthreads();
 
 
@@ -80,37 +80,37 @@ void applyForce(float2 *pos, float2 *vel, float *charges, float *chargeAttractio
         float dist4 = dist2 * dist2;
 
 
-    //        float offsetDist = dist - 0.2f;
-    //        offsetDist = offsetDist < 0.f ? 0.f : offsetDist;
-    //        float od2 = offsetDist * offsetDist;
-    //        float bondOrder = expf(-1.f * od2 * od2* od2* od2* od2* od2);
-    //        newTotalBondOrder += bondOrder;
-    //        printf("Bond order %d,%d: %.5f\n", i, tid, bondOrder);
+//        float offsetDist = dist - 0.2f;
+//        offsetDist = offsetDist < 0.f ? 0.f : offsetDist;
+//        float od2 = offsetDist * offsetDist;
+//        float bondOrder = expf(-1.f * od2 * od2* od2* od2* od2* od2);
+//        newTotalBondOrder += bondOrder;
+//            printf("Bond order %d,%d: %.5f\n", i, tid, bondOrder);
 
-        //if (distSqr > 4) continue;
+        if (dist2 > 16) continue;
         float invDist = 1.f/dist;
         float invDist3 = invDist * invDist * invDist;
         float invDist6 = invDist3 * invDist3;
         float lj_strength = 0.820f;
-        float c_strength = 0.f*0.510f;
+        float c_strength = 1.f*0.00510f;
         float fmag = lj_strength * (invDist6 * invDist6*invDist - invDist6*invDist);
 
 //        printf("i,j: %d, %d, Fx,Fy:%.5f,%.5f\n", i, j, dx * fmag * lj_strength, dy * fmag * lj_strength);
 
 //        #pragma unroll
-//        for (int chargeIndex = 0; chargeIndex < N_CHARGES; chargeIndex++) {
-//            float chargePullMag = -1.f * (c_strength *
-//                1.f*//charges[i * N_CHARGES + chargeIndex] *
-//                scharges[j * N_CHARGES + chargeIndex] *
-//                chargeAttractions[i * N_CHARGES + chargeIndex]) /
-//                (dist2+0.11);
-//
-////            float chargePullMag = 0.f;
-//            fmag += chargePullMag;
-//        }
+        for (int chargeIndex = 0; chargeIndex < N_CHARGES; chargeIndex++) {
+            float chargePullMag = -1.f * (c_strength *
+                1.f*//charges[i * N_CHARGES + chargeIndex] *
+                scharges[j * N_CHARGES + chargeIndex] *
+                chargeAttractions[i * N_CHARGES + chargeIndex]) /
+                (dist2+0.11);
+
+//            float chargePullMag = 0.f;
+            fmag += chargePullMag;
+        }
 //            fmag += 1.1f * c[tid] * c[i];
-            fmag += 10.1f * (4.f * (totalBondOrder[tid] - maxBondOrder[tid]) / (expf(-4.f * (totalBondOrder[tid] - maxBondOrder[tid])) + 1.f)) / dist2;
-//            fmag += 0.1f * expf(8.f * (totalBondOrder[tid] - maxBondOrder[tid] - 0.3))/dist2;
+//        fmag += 1.1f * (4.f * (totalBondOrder[tid] - maxBondOrder[tid]) / (expf(-4.f * (totalBondOrder[tid] - maxBondOrder[tid])) + 1.f)) / dist2;
+//            fmag += 0.1f * expf(1.f * (totalBondOrder[tid] - maxBondOrder[tid] - 0.3))/dist2;
         Fx -= dx * invDist * fmag;
         Fy -= dy * invDist * fmag;
         //Fx += dx * invDist3 * strength; Fy += dy * invDist3 * strength;
@@ -123,7 +123,7 @@ void applyForce(float2 *pos, float2 *vel, float *charges, float *chargeAttractio
     }
 
     if (i>=n) return;
-    float box_width = 350.f / 2.0f;
+    float box_width = 150.f / 2.0f;
     //Fx += pos[i].x < -1.f * box_width ? 1.f : 0.f;
     //Fx += pos[i].x > box_width ? -1.f : 0.f;
 //    Fy += pos[i].y < -1.f * box_width ? 1.f : 0.f;
@@ -158,6 +158,7 @@ void applyForce(float2 *pos, float2 *vel, float *charges, float *chargeAttractio
 
 
 //    charges[i] -= charge_loss * 0.01f;
+//    printf("bond order for %d: %f\n", i, newTotalBondOrder);
     totalBondOrder[i] = newTotalBondOrder;
 
 

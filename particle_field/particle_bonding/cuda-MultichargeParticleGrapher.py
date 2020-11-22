@@ -12,6 +12,7 @@ import pycuda.driver as cuda
 import pycuda.driver
 pycuda.driver.set_debugging()
 import pycuda.autoinit
+import math
 
 # import pycuda.debug
 from pycuda.compiler import SourceModule
@@ -80,14 +81,14 @@ class ParticleGraph(pg.GraphItem):
         self.charge_attractions = charge_attractions
         self.debug = np.zeros_like(self.position)
         self.eneg = eneg
-        self.total_bond_order = np.zeros_like(self.charge)
+        self.total_bond_order = np.zeros((self.position.shape[0])).astype(np.float32)
         self.max_bond_order = max_bond_order
         self.idempot = idempot
         self.n_part = np.array([pos.shape[0]]).astype(np.int32)
         self.eq_dist = 1
         self.grav_pull = np.array([0,-1]) * 0.00000
         self.max_vel = 1
-        self.cmap = pg.ColorMap([1, 0, -1], np.array([[255,0,0,255],[255,255,255,255],[0,0,255,255]]))
+        self.cmap = pg.ColorMap([-2, 0, 2], np.array([[255,0,0,255],[255,255,255,255],[0,0,255,255]]))
         pg.GraphItem.__init__(self)
 
         self.history = np.zeros((1, n_part))
@@ -146,7 +147,8 @@ class ParticleGraph(pg.GraphItem):
                         grid=(int(self.nBlocks), 1, 1))
 
     def redraw(self):
-        # brush = self.cmap.map(np.sum(self.vel * self.vel, axis=1), 'qcolor')
+        brush = self.cmap.map(np.sum(self.vel * self.vel, axis=1), 'qcolor')
+        # brush = self.cmap.map(self.max_bond_order - self.total_bond_order, 'qcolor')
 
         cuda.memcpy_dtoh(self.position, self.position_gpu)
         cuda.memcpy_dtoh(self.vel, self.vel_gpu)
@@ -161,6 +163,7 @@ class ParticleGraph(pg.GraphItem):
                         symbol='o',
                         size=self.eq_dist,
                         brush=[pg.mkColor(self.charge[i][0]*255,self.charge[i][1]*255,self.charge[i][2]*255) for i in range(n_part)],
+                        # brush=brush,
                         pxMode=False)#, c=colorize(self.n_part[None,:]))
         # y,x = np.histogram(self.history, bins=np.linspace(0.000000, 1.5, 100))
         # self.v2.clear()
@@ -205,7 +208,8 @@ if __name__ == '__main__':
 
     # pos = np.array([[0, -1], [0, 1], [-1, 0], [1, 0], [2,2]]).astype(np.float32)
     # pos = np.random.random((100,2)).astype(np.float32)*20-10
-    pos = particle_grid(15, 1.5).astype(np.float32)
+    pos = particle_grid(125, 2.5).astype(np.float32)
+    # pos = np.array([[np.cos(a), np.sin(a)] for a in np.linspace(0, 2*np.pi, 9)[:-1]]).astype(np.float32) * 2
     vel = np.zeros_like(pos)
     # vel = np.random.random((vel.shape[0],2)).astype(np.float32)*0.1-0.05
     # vel = np.array([[-1, 0], [1, 0], [0, 1], [0, -1], [0,0]]).astype(np.float32)
@@ -225,21 +229,21 @@ if __name__ == '__main__':
         [1, 5, 1]
     ]
     pair_attractions = np.array([
-        [1, 1, 1],
-        [1, 10, 1],
-        [1, 1, 10]
+        [10, -5, -5],
+        [-5, 10, -5],
+        [-5, -5, 10]
     ]) * -1.1
     charge_attractions = np.matmul(charge, pair_attractions).astype(np.float32)
     # charge_attractions = np.ones_like(charge)
 
     eneg = np.array([1, 1]).astype(np.float32)
     # eneg = np.ones_like(charge)*1
-    eneg = np.random.choice([1,2], size=charge.size).astype(np.float32)
+    eneg = np.random.choice([2,4], size=charge.size).astype(np.float32)
     idempot = np.array([1, 1]).astype(np.float32)
     idempot = np.ones_like(charge)
 
-    # max_bond_order = np.random.choice([1,4], size=charge.size).astype(np.float32)
-    max_bond_order = eneg * 1
+    max_bond_order = np.random.choice([2,4], size=charge.shape[0]).astype(np.float32)
+    # max_bond_order = eneg * 2
 
     grapher = ParticleGraph(pos=pos, vel=vel, charge=charge, charge_attractions=charge_attractions, eneg=eneg, max_bond_order=max_bond_order, idempot=idempot, dt=dt)
 
