@@ -1,6 +1,7 @@
 import numpy as np
 from itertools import count
 from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 real = np.array([1,0,0,0])
 i = np.array([0,1,0,0])
@@ -11,12 +12,10 @@ ijk = i+j+k
 def quat_multiply(quaternion0, quaternion1):
     x0, y0, z0, w0 = np.split(quaternion0, 4, axis=-1)
     x1, y1, z1, w1 = np.split(quaternion1, 4, axis=-1)
-    # return np.concatenate(
-    #     (x1*w0 + y1*z0 - z1*y0 + w1*x0,
-    #      -x1*z0 + y1*w0 + z1*x0 + w1*y0,
-    #      x1*y0 - y1*x0 + z1*w0 + w1*z0,
-    #      -x1*x0 - y1*y0 - z1*z0 + w1*w0),
-    #     axis=-1)
+    #         a.x*b.x - a.y*b.y - a.z*b.z - a.w*b.w,
+    #         a.x*b.y + b.x*a.y + a.z*b.w - b.z*a.w,
+    #         a.x*b.z + b.x*a.z + b.y*a.w - a.y*b.w,
+    #         a.x*b.w + b.x*a.w + a.y*b.z - b.y*a.z
     return np.concatenate((
         x0*x1 - y0*y1 - z0*z1 - w0*w1,
         x0*y1 + x1*y0 + z0*w1 - z1*w0,
@@ -60,7 +59,7 @@ for i in count():
 
     pos = quat_rotate(pos_quat, axis_quat, rotation_mag)[1:]
     vel = quat_rotate(vel_quat, axis_quat, rotation_mag)[1:]
-    vel[2] -= 0.01 * np.cos(pos[2]*np.pi/2)
+    #vel[2] -= 0.01 * np.cos(pos[2]*np.pi/2)
 
 
     print(pos)

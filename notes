@@ -1,3 +1,10 @@
+Combine spherical pendulum with a nonlinear particle like system, or other oscillating particle like system
+kick the pendulum based on the particle oscillation
+particles will have a stabalized orbit when timed in quanta of unit kick frequency. The kick lines up.
+a particle with two units of spin can interact with a partcle of no spin and make two unit spins (maybe no zero-spin? then again, it could be a useful state. Maybe that's when it doesn't make full revolutions? I don't think that's possible to not have revolution)
+
+
+========
 Field that emulates gravity g(x)
 
 mass adds to the "velocity" of g, dg/dt
@@ -109,3 +116,89 @@ Particles have charges, as well as rules for how they interchange charge with ne
 
 ----
 Charges are instead strategic states of the particle
+
+=========
+particles exist separate from a set of fields
+particles can transmute some fields into others
+particles move by gradient of fields
+    - Just use charges?
+
+
+============
+https://i.imgur.com/ebVhXIq.png
+Layers of differing potentials. The primary structures might be threads of active particles between two layers/membranes, mediating the flow of energy between them
+Convert this intra-membrane approch to either the contents of a vessicle, or between the inner and outer membrane separating an inside vs outside
+
+
+===========
+2d automata
+each cell has N niches. Each species fills an amount of each niche
+Costs more to fill more niches
+    - more benefits if done well
+Pressure against multiple species in same niche
+gradual transfer between niches
+    - or quick transfer if well adapted?
+
+--
+Measure of speciation (for visualization?)
+A single location may be made of many different species. A species is able to mate with another of its species, and not outside its species
+    - Allow interspecies gene transfer at a fixed (variable by evolution?) rate
+A group connected by a continuous bound of mating capability is a species
+    - No matter the difference between individuals in a group?
+    - Group only as large as can all mate with one another? Blend of the two?
+        - Optimize for fewer 'species' counted. From random starting points, anneal to fit more individuals per point
+
+
+
+===========
+Generic niches
+n-dimensional space, where each point represents the fitness of an individual in a specific niche
+cost to being a generalist?
+dimension could represent a particular investment (instead of each point being its own niche?)
+competition per niche
+compete with nearby individuals if they are different enough to be a separate species?
+
+
+
+
+====
+each product/chemical has an energy
+level of each chemical an each point?
+    - Density of each atom at each point, with local correlation?
+        - Compounds are vibrations around stable places in the configuration/potential field
+    - Per-atom particle simulation?
+transitions between energy levels
+    - each compound as an energy level?
+The level of a compound can influence the reaction rate of another transition
+Each location has an energy transition it is trying for
+Decreases in entropy in useful quantities (stored work) should conserve overall system energy
+Abstract the fuel level as separate field?
+If there is fuel available, transitions can happen to increase potential/do work
+Production of this energy should occur by transitioning some elements at some location
+    - Distribution of energy as major goal?
+
+Heat as a separate quantity. To preserve energy in reacting two compounds, the potential energy of the reactants plus their kinetic energy should equal the potential plus kinetic energy of the products
+Max temperature for a compound?
+    - Temperature increases likelihood of transitions into smaller compound constituents
+Heat spreading?
+    molecular kinetic interactions. Depends on material and phase
+Phase is dependent on temperature
+
+Fluidity:
+Pressure
+    Affects reaction rates and is directly related to temperature during changes in either
+Velocity
+
+
+
+
+
+
+
+
+
+
+
+
+
+

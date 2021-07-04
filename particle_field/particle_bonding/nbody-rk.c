@@ -23,6 +23,15 @@ float reflection_force_up(float uPos, float uBound) {
     return 1.f * depth * depth;
 }
 
+
+
+
+
+
+
+
+
+
 __global__
 void applyForce(float2 *pos, float2 *vel, float *charges, float *chargeAttractions, float *eneg, float *totalBondOrder, float *maxBondOrder, float dt, int *n_array) {
 
@@ -31,7 +40,7 @@ void applyForce(float2 *pos, float2 *vel, float *charges, float *chargeAttractio
     int i = blockIdx.x * BLOCK_SIZE + threadIdx.x;
 
 
-    dt = 0.034f;
+    dt = 0.0234f;
     float Fx = 0.0f; float Fy = 0.0f;
     float charge_loss = 0.f;//1.0f + 1.0f * c[i]; // eneg + charge*hardness
     float newTotalBondOrder = 0.f;
@@ -71,7 +80,7 @@ void applyForce(float2 *pos, float2 *vel, float *charges, float *chargeAttractio
         float dist2 = dx*dx + dy*dy + SOFTENING;
 
 
-//        if (dist2 > 35) {
+//        if (dist2 > 5) {
 ////            printf("Ignoring %d,%d\n", i, tid);
 //            continue;
 //        }
@@ -91,23 +100,23 @@ void applyForce(float2 *pos, float2 *vel, float *charges, float *chargeAttractio
         float invDist = 1.f/dist;
         float invDist3 = invDist * invDist * invDist;
         float invDist6 = invDist3 * invDist3;
-        float lj_strength = 0.820f;
+        float lj_strength = 0.9990f;
         float c_strength = 1.f*0.00510f;
         float fmag = lj_strength * (invDist6 * invDist6*invDist - invDist6*invDist);
 
 //        printf("i,j: %d, %d, Fx,Fy:%.5f,%.5f\n", i, j, dx * fmag * lj_strength, dy * fmag * lj_strength);
 
 //        #pragma unroll
-        for (int chargeIndex = 0; chargeIndex < N_CHARGES; chargeIndex++) {
-            float chargePullMag = -1.f * (c_strength *
-                1.f*//charges[i * N_CHARGES + chargeIndex] *
-                scharges[j * N_CHARGES + chargeIndex] *
-                chargeAttractions[i * N_CHARGES + chargeIndex]) /
-                (dist2+0.11);
-
-//            float chargePullMag = 0.f;
-            fmag += chargePullMag;
-        }
+//        for (int chargeIndex = 0; chargeIndex < N_CHARGES; chargeIndex++) {
+//            float chargePullMag = -1.f * (c_strength *
+//                1.f*//charges[i * N_CHARGES + chargeIndex] *
+//                scharges[j * N_CHARGES + chargeIndex] *
+//                chargeAttractions[i * N_CHARGES + chargeIndex]) /
+//                (dist2+0.11);
+//
+////            float chargePullMag = 0.f;
+//            fmag += chargePullMag;
+//        }
 //            fmag += 1.1f * c[tid] * c[i];
 //        fmag += 1.1f * (4.f * (totalBondOrder[tid] - maxBondOrder[tid]) / (expf(-4.f * (totalBondOrder[tid] - maxBondOrder[tid])) + 1.f)) / dist2;
 //            fmag += 0.1f * expf(1.f * (totalBondOrder[tid] - maxBondOrder[tid] - 0.3))/dist2;

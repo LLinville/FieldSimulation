@@ -13,7 +13,7 @@ def jones(dist, eq_dist):
     dist2 = dist * dist
     dist4 = dist2 * dist2
     dist8 = dist4 * dist4
-    return 1 / (dist8) - 1 / (dist4 * dist2)
+    return 1 / (dist8 + 0.3) - 1 / (dist4 * dist2+0.4)
 
 
 def particle_grid(width, spacing):
@@ -46,15 +46,19 @@ class ParticleGraph(pg.GraphItem):
         self.w.setWindowTitle('Particles')
         self.g = pg.GraphItem()
         self.v = self.w.addPlot()
+        self.v.getViewBox().setAspectLocked(True)
+        self.v.getViewBox().disableAutoRange()
         self.v.addItem(self.g)
         self.view_window = (-11,11)
         self.wall_dist = (-10,10)
+        self.v.setXRange(-1 * self.view_window[0], self.view_window[0])
+        self.v.setYRange(-1 * self.view_window[1], self.view_window[1])
         self.dragged_point_index = None
         self.dragOffset = None
 
         self.dt = dt
         self.position = pos
-        self.vel = vel
+        self.velocity = vel
         self.charges = charges
         self.eneg = eneg
         self.idempot = idempot
@@ -70,8 +74,8 @@ class ParticleGraph(pg.GraphItem):
         a = -0.2
         return np.exp(a * dist2)
 
-    def step(self):
-        dist = self.position - self.position[:, None, :]
+    def force(self, position):
+        dist = position - position[:, None, :]
         dist2 = dist * dist
         dist_mag = np.sum(dist2, axis=2)
         # dist2 = dist_mag * dist_mag
@@ -84,71 +88,64 @@ class ParticleGraph(pg.GraphItem):
         # charge_grad = self.eneg + self.idempot * self.charges + 1*np.sum(bond_order * atomic_coulomb_grad, axis=1)
         # charge_transfer = charge_grad - charge_grad[None, :].T
 
-
-
         # self.charges += np.sum(np.nan_to_num(charge_transfer * bond_order * bond_order * bond_order), axis=1) * 0.01
-        self.charges += charge_oscillation(self.charges, dist2) * 0.01
+        # self.charges += charge_oscillation(self.charges, dist2) * 0.01
 
         # particle_charge_attraction = 1.0 * self.charges[None, :] * self.charges[None, :].T / (0.05 + dist2)
 
-        attraction = 0.911 * jones(dist_mag * 1.00, self.eq_dist)# + particle_charge_attraction
+        attraction = 0.009 * jones(dist_mag * 1.00, self.eq_dist)  # + particle_charge_attraction
 
         force = attraction[:, :, None] * dist / dist_mag[:, :, None]
         force = np.sum(np.nan_to_num(force), axis=0)
+        return force
 
+    def step(self):
         neg_embed = self.wall_dist[0] - np.minimum(self.wall_dist[0], self.position)
         pos_embed = self.wall_dist[1] - np.maximum(self.wall_dist[1], self.position)
-        force += neg_embed * neg_embed
-        force -= pos_embed * pos_embed
+        # self.velocity += neg_embed * neg_embed * self.dt * 0.01
+        # self.velocity -= pos_embed * pos_embed * self.dt * 0.01
 
-        self.vel += force * self.dt + self.grav_pull
-        # self.vel *= 0.99995
+        self.velocity += self.grav_pull * self.dt
+        # self.velocity *= 0.99995
+        self.velocity /= np.maximum(self.max_vel, np.abs(self.velocity)) / self.max_vel
 
-        self.vel /= np.maximum(self.max_vel, np.abs(self.vel)) / self.max_vel
-        self.position += self.vel * self.dt
+        kp1 = self.velocity
+        kv1 = self.force(self.position)
+        kp2 = self.velocity + kv1 * self.dt / 2
+        kv2 = self.force(self.position + kp1 * self.dt / 2)
+        kp3 = self.velocity + kv2 * self.dt / 2
+        kv3 = self.force(self.position + kp2 * self.dt / 2)
+        kp4 = self.velocity + kv3 * self.dt
+        kv4 = self.force(self.position + kp3 * self.dt)
+
+        self.position += (kp1 + 2*kp2 + 2*kp3 + kp4) * self.dt / 6
+        self.velocity += (kv1 + 2*kv2 + 2*kv3 + kv4) * self.dt / 6
+
 
     def redraw(self):
-        # brush = self.cmap.map(np.sum(self.vel * self.vel, axis=1), 'qcolor') * 10
-        # brush = self.cmap.map(self.charges, 'qcolor')
-        self.g.setData(pos=self.position, pen=0.5, symbol='o', size=self.eq_dist, pxMode=False, c=colorize(self.charges[None,:,0] + 1j * self.charges[None,:,1]))
-        self.v.setXRange(-1 * self.view_window[0], self.view_window[0])
-        self.v.setYRange(-1 * self.view_window[1], self.view_window[1])
+        brush = self.cmap.map(np.sum(self.velocity * self.velocity, axis=1), 'qcolor')
+        # brush = self.cmap.map(self.max_bond_order - self.total_bond_order, 'qcolor')
+        # brush = self.cmap.map(np.sum(self.charge * self.charge, axis=1), 'qcolor')
+        # brush = self.cmap.map(self.charge, 'qcolor')
+        # brush = [pg.mkColor(self.charge[i][0] * 255, self.charge[i][1] * 255, self.charge[i][2] * 255) for i in range(n_part)]
 
-    def mouseDragEvent(self, ev):
-        if ev.button() != QtCore.Qt.LeftButton:
-            ev.ignore()
-            return
+        self.g.setData(pos=np.nan_to_num(self.position),
+                        pen=0.5,
+                        symbol='o',
+                        size=self.eq_dist,
+                        brush=brush,
+                        pxMode=False)
 
-        if ev.isStart():
-            pos = ev.buttonDownPos()
-            pts = self.scatter.pointsAt(pos)
-            if len(pts) == 0:
-                ev.ignore()
-                return
-            self.dragPoint = pts[0]
-            ind = pts[0].data()[0]
-            self.dragOffset = self.data['pos'][ind][1] - pos[1]
-        elif ev.isFinish():
-            self.dragPoint = None
-            return
-        else:
-            if self.dragPoint is None:
-                ev.ignore()
-                return
 
-        ind = self.dragPoint.data()[0]
-        self.data['pos'][ind][1] = ev.pos()[1] + self.dragOffset
-        self.updateGraph()
-        ev.accept()
 
 
 if __name__ == '__main__':
 
-    dt = 0.125
+    dt = 6.6125
 
     pos = np.array([[-1, -1], [1, 1]]).astype(np.float64)
-    pos = particle_grid(12, 1)
-    pos = np.array([[0,0]]).astype(np.float64)
+    pos = particle_grid(22, 1)
+    # pos = np.array([[0,0]]).astype(np.float64)
     vel = np.zeros_like(pos)
     n_part = len(pos)
     charge = np.random.random(n_part) * 2 - 1
@@ -165,7 +162,7 @@ if __name__ == '__main__':
     grapher = ParticleGraph(pos=pos, vel=vel, charges=charges, eneg=eneg, idempot=idempot, dt=dt)
 
     history = []
-    iter_per_redraw = 1000
+    iter_per_redraw = 10
     start = time.time()
     for iter in count():
         grapher.step()
