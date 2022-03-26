@@ -1,10 +1,15 @@
 import numpy as np
 import cmath
 from os import path
-from numba import cuda, float32
+# from numba import cuda, float32
+from matplotlib import pyplot as plt
 from numpy import pi
 from colorsys import hls_to_rgb
+from opensimplex import OpenSimplex
+from math import pi
+from numpy.fft import fft2, ifft2, fft, ifft, fftshift, ifftshift, fftfreq
 
+noisegen = OpenSimplex(seed=2)
 
 def add_point_parabolic(data, cx, cy, width=100, turns=0, mag=1):
     for x in range(data.shape[0]):
@@ -111,7 +116,12 @@ def total_mag(buffer):
     return np.sum(np.sqrt(points[:,:,0]*points[:,:,0] + points[:,:,1]*points[:,:,1]))
 
 def grad(field):
-        return (np.roll(field, 1, axis=0) + np.roll(field, -1, axis=0) + np.roll(field, 1, axis=1) + np.roll(field, -1, axis=1)) / 4 - field
+    return (np.roll(field, 1, axis=0) + np.roll(field, -1, axis=0) + np.roll(field, 1, axis=1) + np.roll(field, -1, axis=1)) / 4 - field
+
+
+def divergence(field):
+    return (np.roll(field, 1, axis=0) - np.roll(field, -1, axis=0)) / 2 + (np.roll(field, 1, axis=0) + np.roll(field, -1, axis=0)) / 2
+
 
 def runge_kutta_force(field, stepper, dt=0.01):
     stepper(field, dt)
@@ -141,42 +151,70 @@ def colorize(z):
     c = c.swapaxes(0,2)
     return c
 
-# Controls threads per block and shared memory usage.
-# The computation will be done on blocks of TPBxTPB elements.
-TPB = 16
-@cuda.jit
-def fast_matmul(A, B, C):
-    # Define an array in the shared memory
-    # The size and type of the arrays must be known at compile time
-    sA = cuda.shared.array(shape=(TPB, TPB), dtype=float32)
-    sB = cuda.shared.array(shape=(TPB, TPB), dtype=float32)
 
-    x, y = cuda.grid(2)
+# x and y are in the range [0,1] where 0 wraps back to 1
+def loop_noise2(x, y, scale=0.1, noisegen=noisegen):
+    return noisegen.noise4(
+        scale * np.sin(2 * pi * x),
+        scale * np.cos(2 * pi * x),
+        scale * np.sin(2 * pi * y),
+        scale * np.cos(2 * pi * y)
+    )
 
-    tx = cuda.threadIdx.x
-    ty = cuda.threadIdx.y
-    bpg = cuda.gridDim.x    # blocks per grid
 
-    if x >= C.shape[0] and y >= C.shape[1]:
-        # Quit if (x, y) is outside of valid C boundary
-        return
+def xplot_vec(field, ax=plt, scale=None):
+    width = field.shape[0]
+    if not scale:
+        scale = 0.11/np.max(np.abs(field))
+    for x, row in enumerate(field):
+        for y, cell in enumerate(row):
+            ax.arrow(x/width, y/width, scale * np.real(cell), scale * np.imag(cell))
 
-    # Each thread computes one element in the result matrix.
-    # The dot product is chunked into dot products of TPB-long vectors.
-    tmp = 0.
-    for i in range(bpg):
-        # Preload data into shared memory
-        sA[tx, ty] = A[x, ty + i * TPB]
-        sB[tx, ty] = B[tx + i * TPB, y]
+def plot_vec(field, ax=plt, scale=None):
+    width = field.shape[0]
+    X, Y = np.meshgrid(range(width), range(width))
+    ax.quiver(X, Y, np.real(field), np.imag(field))
 
-        # Wait until all threads finish preloading
-        cuda.syncthreads()
+def fftfreq2(width):
+    row = fftfreq(width)
+    x, y = np.meshgrid(row, row)
+    return x + 1j * y
 
-        # Computes partial product on the shared memory
-        for j in range(TPB):
-            tmp += sA[tx, j] * sB[j, ty]
 
-        # Wait until all threads finish computing
-        cuda.syncthreads()
+def conj_asym(field):
+    largest_difference = (0, '')
+    for x in range(field.shape[0]):
+        for y in range(field.shape[1]):
+            if field[x][y].real - field[-x-1][-y-1].real > largest_difference[0]:
+                print(f"Failed at ({x},{y}), ({-x-1},{-y-1}) with {field[x][y]}, {field[-x-1][-y-1]}")
+                largest_difference = (field[x][y].real - field[-x-1][-y-1].real, f"Failed at ({x},{y}), ({-x-1},{-y-1}) with {field[x][y]}, {field[-x-1][-y-1]}")
 
-    C[x, y] = tmp
+            if field[x][y].imag + field[-x-1][-y-1].imag > largest_difference[0]:
+                print(f"Failed at ({x},{y}), ({-x-1},{-y-1}) with {field[x][y]}, {field[-x-1][-y-1]}")
+                largest_difference = (field[x][y].imag + field[-x-1][-y-1].imag, f"Failed at ({x},{y}), ({-x-1},{-y-1}) with {field[x][y]}, {field[-x-1][-y-1]}")
+
+    return largest_difference
+
+
+
+# Returns rotational(field), divergent(field) in fourier space
+def decompose(field):
+    width = field.shape[0]
+    # unit = [
+    #     [
+    #         row + 1j*col for col in np.linspace(-2, 2, width)
+    #     ] for row in np.linspace(-2, 2, width)
+    # ]
+
+    unit = np.fft.fftfreq(width).reshape(width, 1)
+
+
+
+    # unit = np.array(unit)
+    unit /= np.abs(unit)
+    unit = np.nan_to_num(unit)
+
+    parallel_mag = np.real(unit) * np.real(field) + np.imag(unit) * np.imag(field)
+    return unit * parallel_mag, field - unit * parallel_mag
+
+
