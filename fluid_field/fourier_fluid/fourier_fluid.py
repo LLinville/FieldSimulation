@@ -43,10 +43,11 @@ dt = 1.1
 
 # vel += np.exp(-1*x**2)*0.1
 # vel -= np.exp(-1*(x-10)**2)*0.1
-noise_real = OpenSimplex(seed=1)
-noise_imag = OpenSimplex(seed=0)
-arrow_scale = 0.08
-noise_scale = 0.51
+seed_offset = 10
+noise_real = OpenSimplex(seed=1+seed_offset)
+noise_imag = OpenSimplex(seed=0+seed_offset)
+arrow_scale = 0.07
+noise_scale = 1.21
 arrow_settings = {
     "shape": "right",
     "head_width": 0.01
@@ -82,14 +83,23 @@ initial = np.copy(vel)
 
 # k = fftfreq2(width)
 #
-# z = np.array([
-#     [1, 1, 1, 1, 1, 1],
-#     [1, 0, 0, 0, 0, 0],
-#     [1, 0, 0, 0, 0, 0],
-#     [1, 0, 0, 0, 0, 0],
-#     [1, 0, 0, 0, 0, 0],
-#     [1, 0, 0, 0, 0, 0],
-# ])
+z = np.array([
+    [1, 1, 1, 1, 1, 1],
+    [1, 0, 0, 0, 0, 0],
+    [1, 0, 0, 0, 0, 0],
+    [1, 0, 0, 0, 0, 0],
+    [1, 0, 0, 0, 0, 0],
+    [1, 0, 0, 0, 0, 0],
+])
+v = np.array(vel)
+X, Y = np.meshgrid(range(v.shape[0]), range(v.shape[0]))
+fig, axs = plt.subplots(2,2)
+plot_vec(v, ax=axs[0][0])
+plot_vec(decompose(v)[1], ax=axs[1][0])
+plot_vec(decompose(v)[0], ax=axs[1][1])
+plt.show()
+pass
+
 # z = np.array([
 #     [0, 0, 1, 0, 0],
 #     [0, 1+1j, 1, 0, 1+2j],
@@ -115,12 +125,15 @@ transformed = fft2(initial)
 
 rotational_ft, divergent_ft = decompose(transformed)
 
-x_rot_ft, x_div_ft = decompose(fft2(np.real(initial)))
-y_rot_ft, y_div_ft = decompose(fft2(np.imag(initial)))
-x_rot, x_div = ifft2(x_rot_ft), ifft2(x_div_ft)
-y_rot, y_div = ifft2(y_rot_ft), ifft2(y_div_ft)
-rotational = x_rot + 1j * y_rot
-divergent = x_div + 1j * y_div
+# x_rot_ft, x_div_ft = decompose(fft2(np.real(initial)))
+# y_rot_ft, y_div_ft = decompose(fft2(np.imag(initial)))
+# x_rot, x_div = ifft2(x_rot_ft), ifft2(x_div_ft)
+# y_rot, y_div = ifft2(y_rot_ft), ifft2(y_div_ft)
+# rotational = x_rot + 1j * y_rot
+# divergent = x_div + 1j * y_div
+rotational, divergent = decompose(vel)
+x_rot, y_rot = np.real(rotational), np.imag(rotational)
+x_div, y_div = np.real(divergent), np.imag(divergent)
 
 # rotational = ifft2(ifftshift(rotational_ft))
 # divergent = ifft2(ifftshift(divergent_ft))

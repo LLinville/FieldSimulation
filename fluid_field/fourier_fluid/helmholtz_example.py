@@ -15,17 +15,19 @@ However, when the field is smooth enough, the imaginary part caused by the Nyqui
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+import util
 from util import *
 from opensimplex import OpenSimplex
 noise_real = OpenSimplex(seed=1)
 noise_imag = OpenSimplex(seed=0)
 arrow_scale = 0.08
-noise_scale = 0.51
+noise_scale = 0.81
 width = 91
 vel = [
     [
         loop_noise2(x, y, noise_scale, noise_real) + 1j * loop_noise2(x, y, noise_scale, noise_imag) for x in np.linspace(-1, 1, width)
-    ] for y in np.linspace(-10, 10, width)
+    ] for y in np.linspace(-1, 1, width)
 ]
 
 # Vf = np.fromfile('v0_xyz_16_16_128.dat').reshape(3,16,16,128)
@@ -61,6 +63,9 @@ V_solenoidal_y = Vfy - V_compressive_y
 # check if the solenoidal part really divergence-free
 divVs = np.fft.ifftn((np.fft.fftn(V_solenoidal_x) * kx + np.fft.fftn(V_solenoidal_y) * ky) * 1j * 2. * np.pi)
 
+
+
+
 print('div_solenoidal max:', abs(divVs).max())
 
 # check the power in solenoidal and compressive components
@@ -68,12 +73,18 @@ print('variance:')
 print('solenoidal x,y,z:', V_solenoidal_x.var(), V_solenoidal_y.var())
 print('compressive x,y,z:', V_compressive_x.var(), V_compressive_y.var())
 
+div, rot = decompose(Vf)
+
 # plot one slice of the decomposed field on X-Y plane
 X, Y = np.meshgrid(range(NY), range(NX))
 plt.figure()
-plt.quiver(X, Y, V_solenoidal_x[:,:,0], V_solenoidal_y[:,:,0], scale=10)
-plt.figure()
-plt.quiver(X, Y, V_compressive_x[:,:,0], V_compressive_y[:,:,0])
+plt.quiver(X, Y, np.real(rot), np.imag(rot))
+# plt.figure()
+# plt.quiver(X, Y, np.real(Vf), np.imag(Vf))
+# plt.figure()
+# plt.quiver(X, Y, np.real(V_solenoidal_x), np.real(V_solenoidal_y), scale=20)
+# plt.figure()
+# plt.quiver(X, Y, np.real(V_compressive_x), np.real(V_compressive_y))
 plt.ion()
 plt.show()
 plt.pause(0.01)

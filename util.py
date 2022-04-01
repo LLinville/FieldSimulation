@@ -170,6 +170,7 @@ def xplot_vec(field, ax=plt, scale=None):
         for y, cell in enumerate(row):
             ax.arrow(x/width, y/width, scale * np.real(cell), scale * np.imag(cell))
 
+
 def plot_vec(field, ax=plt, scale=None):
     width = field.shape[0]
     X, Y = np.meshgrid(range(width), range(width))
@@ -191,14 +192,14 @@ def conj_asym(field):
 
             if field[x][y].imag + field[-x-1][-y-1].imag > largest_difference[0]:
                 print(f"Failed at ({x},{y}), ({-x-1},{-y-1}) with {field[x][y]}, {field[-x-1][-y-1]}")
-                largest_difference = (field[x][y].imag + field[-x-1][-y-1].imag, f"Failed at ({x},{y}), ({-x-1},{-y-1}) with {field[x][y]}, {field[-x-1][-y-1]}")
+                largest_difference = (field[x][y].imag + field[-x-1][-y-1].imag,f'mag: {np.sqrt(field[x][y]**2 + field[x-1][y-1])}', f"Failed at ({x},{y}), ({-x-1},{-y-1}) with {field[x][y]}, {field[-x-1][-y-1]}")
 
     return largest_difference
 
 
 
 # Returns rotational(field), divergent(field) in fourier space
-def decompose(field):
+def decompose_ft(field):
     width = field.shape[0]
     # unit = [
     #     [
@@ -208,8 +209,6 @@ def decompose(field):
 
     unit = np.fft.fftfreq(width).reshape(width, 1)
 
-
-
     # unit = np.array(unit)
     unit /= np.abs(unit)
     unit = np.nan_to_num(unit)
@@ -218,3 +217,25 @@ def decompose(field):
     return unit * parallel_mag, field - unit * parallel_mag
 
 
+def decompose(field):
+    field = np.array(field)
+
+    width = field.shape[0]
+    vx, vy = np.real(field), np.imag(field)
+    vx_f = fft2(vx)
+    vy_f = fft2(vy)
+    kx = np.real(fftfreq2(width))
+    ky = np.imag(fftfreq2(width))
+    k2 = kx**2 + ky**2
+    k2[0,0] = 1.
+
+    div_Vf_f = (vx_f * kx +  vy_f * ky) #*1j
+    V_compressive_overk = div_Vf_f / k2
+    V_compressive_x = np.fft.ifftn(V_compressive_overk * kx)
+    V_compressive_y = 1*np.fft.ifftn(V_compressive_overk * ky)
+
+    V_solenoidal_x = vx - V_compressive_x
+    V_solenoidal_y = vy - V_compressive_y
+    V_solenoidal_y *= 1
+
+    return V_compressive_x + 1j * V_compressive_y, V_solenoidal_x + 1j * V_solenoidal_y
