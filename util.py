@@ -217,7 +217,10 @@ def decompose_ft(field):
     return unit * parallel_mag, field - unit * parallel_mag
 
 
-def decompose(field):
+def decompose(field, mask=None):
+    if mask is None:
+        mask = np.zeros_like(field) + 1
+
     field = np.array(field)
 
     width = field.shape[0]
@@ -226,11 +229,13 @@ def decompose(field):
     vy_f = fft2(vy)
     kx = np.real(fftfreq2(width))
     ky = np.imag(fftfreq2(width))
+
     k2 = kx**2 + ky**2
     k2[0,0] = 1.
 
     div_Vf_f = (vx_f * kx +  vy_f * ky) #*1j
     V_compressive_overk = div_Vf_f / k2
+
     V_compressive_x = np.fft.ifftn(V_compressive_overk * kx)
     V_compressive_y = 1*np.fft.ifftn(V_compressive_overk * ky)
 

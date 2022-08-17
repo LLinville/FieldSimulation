@@ -12,7 +12,7 @@ from math import pi
 from opensimplex import OpenSimplex
 from coloring import colorize
 
-width = 95
+width = 15
 x = np.array(np.linspace(-6*pi, 6*pi, width), dtype=complex)
 
 def laplacian(position):
@@ -91,14 +91,30 @@ z = np.array([
     [1, 0, 0, 0, 0, 0],
     [1, 0, 0, 0, 0, 0],
 ])
+z = np.zeros_like(z)
 v = np.array(vel)
+v = np.imag(v)
+zeros = np.zeros_like(v)
 X, Y = np.meshgrid(range(v.shape[0]), range(v.shape[0]))
 fig, axs = plt.subplots(2,2)
 plot_vec(v, ax=axs[0][0])
-plot_vec(decompose(v)[1], ax=axs[1][0])
-plot_vec(decompose(v)[0], ax=axs[1][1])
+
+
+mask = np.array(zeros, dtype=np.complex)
+mask[0,1] = 1
+mask[0,-1] = 1
+
+kx = np.real(fftfreq2(width))
+ky = np.imag(fftfreq2(width))
+
+vel = ifft2(mask * (kx)) + 0*ifft2(mask * (ky))
+
+plot_vec(vel, ax=axs[0][1])
+plot_vec(decompose(vel)[1], ax=axs[1][0])
+plot_vec(fftshift(fft2(decompose(vel)[1])))
 plt.show()
 pass
+quit()
 
 # z = np.array([
 #     [0, 0, 1, 0, 0],
